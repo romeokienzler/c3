@@ -1,4 +1,4 @@
-name: Get Lines
+name: Get Lines2
 description: Gets the specified number of lines from the input file.
 
 inputs:

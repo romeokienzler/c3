@@ -1,0 +1,1 @@
+p"git+https://github.com/machine-learning-exchange/mlx.git@main#egg=mlx-client&subdirectory=api/client"
