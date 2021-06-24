@@ -1,1 +1,4 @@
-p"git+https://github.com/machine-learning-exchange/mlx.git@main#egg=mlx-client&subdirectory=api/client"
+"git+https://github.com/machine-learning-exchange/mlx.git@main#egg=mlx-client&subdirectory=api/client"
+nbformat==5.1.3
+nbconvert==6.0.7
+ipython==7.16.1
