@@ -1,0 +1,70 @@
+name: input_hmp
+description: This notebook pulls the HMP accelerometer sensor data classification data set
+
+inputs:
+- {name: data_csv, type: String, description: 'not yet supported'}
+- {name: master, type: String, description: 'not yet supported'}
+- {name: master2, type: String, description: 'not yet supported'}
+- {name: data_dir, type: String, description: 'not yet supported'}
+
+
+outputs:
+- {name: output_data, type: String, description: 'not yet supported'}
+- {name: output_data2, type: String, description: 'not yet supported'}
+
+
+implementation:
+container:
+    image: continuumio/anaconda3:2020.07
+    command
+        
+(venv) romeokienzler:c3$ ^C
+(venv) romeokienzler:c3$ ^C
+(venv) romeokienzler:c3$ ./run_tests.sh 
+
+name: input_hmp
+description: This notebook pulls the HMP accelerometer sensor data classification data set
+
+inputs:
+- {name: data_csv, type: String, description: 'not yet supported'}
+- {name: master, type: String, description: 'not yet supported'}
+- {name: master2, type: String, description: 'not yet supported'}
+- {name: data_dir, type: String, description: 'not yet supported'}
+
+
+outputs:
+- {name: output_data, type: String, description: 'not yet supported'}
+- {name: output_data2, type: String, description: 'not yet supported'}
+
+
+implementation:
+container:
+    image: continuumio/anaconda3:2020.07
+    command: [
+      seq 100
+    ]
+        
+(venv) romeokienzler:c3$ ./run_tests.sh 
+
+name: input_hmp
+description: This notebook pulls the HMP accelerometer sensor data classification data set
+
+inputs:
+- {name: data_csv, type: String, description: 'not yet supported'}
+- {name: master, type: String, description: 'not yet supported'}
+- {name: master2, type: String, description: 'not yet supported'}
+- {name: data_dir, type: String, description: 'not yet supported'}
+
+
+outputs:
+- {name: output_data, type: String, description: 'not yet supported'}
+- {name: output_data2, type: String, description: 'not yet supported'}
+
+
+implementation:
+    container:
+        image: continuumio/anaconda3:2020.07
+        command: [
+            seq 100
+        ]
+        

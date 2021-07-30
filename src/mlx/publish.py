@@ -76,8 +76,8 @@ def upload_component_file(component_id, file_path):
 
 def main():
     
-    component_file = create_tar_file('component.yaml')
-    upload_component_file('test3',component_file)
+    component_file = create_tar_file('../../test_component.yaml')
+    upload_component_file('test4',component_file)
 
 if __name__ == '__main__':
     main()
