@@ -14,8 +14,8 @@ outputs:
 
 
 implementation:
-container:
-    image: continuumio/anaconda3:2020.07
-    command: [
-      seq 100
-    ]
+  container:
+      image: continuumio/anaconda3:2020.07
+      command: [
+        seq 100
+      ]

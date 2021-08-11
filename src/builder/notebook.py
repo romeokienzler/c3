@@ -8,11 +8,23 @@ class Notebook():
             self.notebook = json.load(json_file)
             self.name = self.notebook['cells'][0]['source'][0].replace('#', '').strip()
             self.description = self.notebook['cells'][1]['source'][0]
-
-            cp = ContentParser()
-            self.envs = cp.parse(path)['env_vars']
-
+            self.envs = self._get_env_vars(path)
             self.requirements = self._get_requirements()
+
+    def _get_env_vars(self, path):
+        cp = ContentParser()
+        env_names = cp.parse(path)['env_vars']
+        for env_name in env_names:
+            comment_line = str()     
+            for line in self.notebook['cells'][4]['source']:
+                if re.search("[\"']" + env_name + "[\"']", line):
+                    print(env_name + ':')
+                    print(comment_line)
+                    print(line)
+                comment_line = line
+        return env_names
+
+
 
     def _get_requirements(self):
         for cell in self.notebook['cells']:

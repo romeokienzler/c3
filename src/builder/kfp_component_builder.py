@@ -6,7 +6,7 @@ from io import StringIO
 
 class KfpComponentBuilder():
     def __init__(self, notebook_url : str):
-        nb = Notebook('../../test/notebooks/a_notebook.ipynb')
+        nb = Notebook(notebook_url)
         self.kfp = KfpComponent(nb)
 
     def get_inputs(self):
