@@ -14,15 +14,22 @@ class Notebook():
     def _get_env_vars(self, path):
         cp = ContentParser()
         env_names = cp.parse(path)['env_vars']
+        return_value = dict()
         for env_name in env_names:
             comment_line = str()     
             for line in self.notebook['cells'][4]['source']:
                 if re.search("[\"']" + env_name + "[\"']", line):
-                    print(env_name + ':')
-                    print(comment_line)
-                    print(line)
+                    assert '#' in comment_line, "comment line didn't contain #"
+                    if "int(" in line:
+                        type = 'Integer'
+                    elif "float(" in line:
+                        type = 'Float'
+                    else:
+                        type = 'String'
+
+                    return_value[env_name]=(comment_line.replace('#', '').strip(),type,None)
                 comment_line = line
-        return env_names
+        return return_value
 
 
 
