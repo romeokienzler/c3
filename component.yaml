@@ -1,27 +1,24 @@
-name: Get Lines2
-description: Gets the specified number of lines from the input file.
+name: Input Postgresql
+description: This notebook pulls data from a postgresql database as CSV on a given SQL statement
 
 inputs:
-- {name: Input 1, type: String, description: 'Data for input 1'}
-- {name: Parameter 1, type: Integer, default: '100', description: 'Number of lines to copy'}
+- {name: host, type: String, description: 'hostname of database server'}
+- {name: database, type: String, description: 'database name'}
+- {name: user, type: String, description: 'db user'}
+- {name: password, type: String, description: 'db password'}
+- {name: port, type: Integer, description: 'db port'}
+- {name: sql, type: String, description: 'sql query statement to be executed'}
+- {name: data_dir, type: String, description: 'temporal data storage for local execution'}
+
 
 outputs:
-- {name: Output 1, type: String, description: 'Output 1 data.'}
+- {name: output_data_csv, type: String, description: 'path and file name for output'}
+
 
 implementation:
-  container:
-    image: romeokienzler/c3:latest
-    # command is a list of strings (command-line arguments). 
-    # The YAML language has two syntaxes for lists and you can use either of them. 
-    # Here we use the "flow syntax" - comma-separated strings inside square brackets.
-    command: [
-      python3, 
-      # Path of the program inside the container
-      /pipelines/component/src/program.py,
-      --input1-path,
-      {inputPath: Input 1},
-      --param1, 
-      {inputValue: Parameter 1},
-      --output1-path, 
-      {outputPath: Output 1},
-    ]
+    container:
+        image: continuumio/anaconda3:2020.07
+        command: [
+            wget https://raw.githubusercontent.com/IBM/claimed/master/component-library/input/input-postgresql.ipynb &&,
+            ipython ./input-postgresql.ipynb data_dir=.,
+        ]
