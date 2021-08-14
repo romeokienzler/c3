@@ -20,5 +20,21 @@ implementation:
         image: continuumio/anaconda3:2020.07
         command: [
             wget https://raw.githubusercontent.com/IBM/claimed/master/component-library/input/input-postgresql.ipynb &&,
-            ipython ./input-postgresql.ipynb data_dir=.,
+            ipython ./input-postgresql.ipynb,
+            host=.,
+            {host},
+            database=.,
+            {database},
+            user=.,
+            {user},
+            password=.,
+            {password},
+            port=.,
+            {port},
+            sql=.,
+            {sql},
+            data_dir=.,
+            {data_dir},
+            output_data_csv=
+            {output_data_csv}
         ]
