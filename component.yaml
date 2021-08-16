@@ -18,23 +18,14 @@ outputs:
 implementation:
     container:
         image: continuumio/anaconda3:2020.07
-        command: [
-            wget https://raw.githubusercontent.com/IBM/claimed/master/component-library/input/input-postgresql.ipynb &&,
-            ipython ./input-postgresql.ipynb,
-            host=,
-            {host},
-            database=,
-            {database},
-            user=,
-            {user},
-            password=,
-            {password},
-            port=,
-            {port},
-            sql=,
-            {sql},
-            data_dir=,
-            {data_dir},
-            output_data_csv=,
-            {output_data_csv},
-        ]
+    command: [
+      python3, 
+      # Path of the program inside the container
+      /pipelines/component/src/program.py,
+      --input1-path,
+      {inputPath: Input 1},
+      --param1, 
+      {inputValue: Parameter 1},
+      --output1-path, 
+      {outputPath: Output 1},
+    ]
