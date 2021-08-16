@@ -35,6 +35,6 @@ implementation:
             {sql},
             data_dir=.,
             {data_dir},
-            output_data_csv=
+            output_data_csv=,
             {output_data_csv}
         ]
