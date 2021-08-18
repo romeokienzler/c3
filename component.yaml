@@ -18,23 +18,23 @@ outputs:
 implementation:
     container:
         image: continuumio/anaconda3:2020.07
-    command: [
-        wget https://raw.githubusercontent.com/IBM/claimed/master/component-library/input/input-postgresql.ipynb &&,
-        ipython ./input-postgresql.ipynb,
-        host=,
-        {inputValue: host},
-        database=,
-        {inputValue: database},
-        user=,
-        {inputValue: user},
-        password=,
-        {inputValue: password},
-        port=,
-        {inputValue: port},
-        sql=,
-        {inputValue: sql},
-        data_dir=,
-        {inputValue: data_dir},
-        output_data_csv=,
-        {outputPath: output_data_csv},
-    ]
+        command: [
+            wget https://raw.githubusercontent.com/IBM/claimed/master/component-library/input/input-postgresql.ipynb &&,
+            ipython ./input-postgresql.ipynb,
+            host=,
+            {inputValue: host},
+            database=,
+            {inputValue: database},
+            user=,
+            {inputValue: user},
+            password=,
+            {inputValue: password},
+            port=,
+            {inputValue: port},
+            sql=,
+            {inputValue: sql},
+            data_dir=,
+            {inputValue: data_dir},
+            output_data_csv=,
+            {outputPath: output_data_csv},
+        ]
