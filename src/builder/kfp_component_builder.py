@@ -18,10 +18,18 @@ class KfpComponentBuilder():
 
     def get_outputs(self):
         with StringIO() as outputs_str:
+            assert len(self.kfp.get_outputs()) == 1, 'exactly one output currently supported'
             for output_key, output_value in self.kfp.get_outputs().items():
                 t = Template("- {name: $name, type: $type, description: '$description'}")
                 print(t.substitute(name=output_key, type=output_value[1], description=output_value[0]), file=outputs_str)
             return outputs_str.getvalue()
+
+    def get_output_name(self):
+        assert len(self.kfp.get_outputs()) == 1, 'exactly one output currently supported'
+        for output_key, output_value in self.kfp.get_outputs().items():
+            return output_key
+
+        
 
     def get_yaml(self):
         t = Template('''
@@ -37,15 +45,29 @@ $outputs
 implementation:
     container:
         image: $container_uri
-        command: [
-            wget https://raw.githubusercontent.com/IBM/claimed/master/component-library/input/input-postgresql.ipynb &&,
-            ipython ./input-postgresql.ipynb data_dir=.,
-        ]
+        command:
+        - sh
+        - -ec
+        - |
+          $mkdir
+          wget https://raw.githubusercontent.com/IBM/claimed/master/component-library/input/input-postgresql.ipynb
+          $call
+        - {outputPath: $outputPath}
+        - {inputValue: host}
+        - {inputValue: database}
+        - {inputValue: user}
+        - {inputValue: password}
+        - {inputValue: port}
+        - {inputValue: sql}
+        - {inputValue: data_dir}
         ''')
         return t.substitute(
             name=self.kfp.get_name(),
             description=self.kfp.get_description(),
             inputs=self.get_inputs(),
             outputs=self.get_outputs(),
-            container_uri=self.kfp.get_container_uri()
+            container_uri=self.kfp.get_container_uri(),
+            outputPath=self.get_output_name(),
+            mkdir="mkdir -p `echo $0 |sed -e 's/\/[a-zA-Z0-9]*$//'`",
+            call='ipython ./input-postgresql.ipynb output_data_csv="$0" host="$1" database="$2" user="$3" password="$4" port="$5" sql="$6" data_dir="$7"'
             )
