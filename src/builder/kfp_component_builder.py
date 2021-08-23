@@ -16,6 +16,13 @@ class KfpComponentBuilder():
                 print(t.substitute(name=input_key, type=input_value[1], description=input_value[0]), file=inputs_str)
             return inputs_str.getvalue()
 
+    def get_input_for_implementation(self):
+        with StringIO() as inputs_str:
+            for input_key, input_value in self.kfp.get_inputs().items():
+                t = Template("        - {inputValue: $name}")
+                print(t.substitute(name=input_key), file=inputs_str)
+            return inputs_str.getvalue()    
+
     def get_outputs(self):
         with StringIO() as outputs_str:
             assert len(self.kfp.get_outputs()) == 1, 'exactly one output currently supported'
@@ -53,13 +60,7 @@ implementation:
           wget https://raw.githubusercontent.com/IBM/claimed/master/component-library/input/input-postgresql.ipynb
           $call
         - {outputPath: $outputPath}
-        - {inputValue: host}
-        - {inputValue: database}
-        - {inputValue: user}
-        - {inputValue: password}
-        - {inputValue: port}
-        - {inputValue: sql}
-        - {inputValue: data_dir}
+$input_for_implementation
         ''')
         return t.substitute(
             name=self.kfp.get_name(),
@@ -68,6 +69,7 @@ implementation:
             outputs=self.get_outputs(),
             container_uri=self.kfp.get_container_uri(),
             outputPath=self.get_output_name(),
+            input_for_implementation=self.get_input_for_implementation(),
             mkdir="mkdir -p `echo $0 |sed -e 's/\/[a-zA-Z0-9]*$//'`",
             call='ipython ./input-postgresql.ipynb output_data_csv="$0" host="$1" database="$2" user="$3" password="$4" port="$5" sql="$6" data_dir="$7"'
             )
