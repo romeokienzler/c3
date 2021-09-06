@@ -39,8 +39,7 @@ class KfpComponentBuilder():
         
 
     def get_yaml(self):
-        t = Template('''
-name: $name
+        t = Template('''name: $name
 description: $description
 
 inputs:
@@ -60,8 +59,7 @@ implementation:
           wget https://raw.githubusercontent.com/IBM/claimed/master/component-library/input/input-postgresql.ipynb
           $call
         - {outputPath: $outputPath}
-$input_for_implementation
-        ''')
+$input_for_implementation''')
         return t.substitute(
             name=self.kfp.get_name(),
             description=self.kfp.get_description(),
