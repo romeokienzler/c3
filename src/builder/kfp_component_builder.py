@@ -25,7 +25,7 @@ class KfpComponentBuilder():
 
     def get_outputs(self):
         with StringIO() as outputs_str:
-            assert len(self.kfp.get_outputs()) == 1, 'exactly one output currently supported'
+            assert len(self.kfp.get_outputs()) == 1, 'exactly one output currently supported: '+ str((len(self.kfp.get_outputs())))
             for output_key, output_value in self.kfp.get_outputs().items():
                 t = Template("- {name: $name, type: $type, description: '$description'}")
                 print(t.substitute(name=output_key, type=output_value[1], description=output_value[0]), file=outputs_str)
