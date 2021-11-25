@@ -5,8 +5,10 @@ from io import StringIO
 
 
 class KfpComponentBuilder():
-    def __init__(self, notebook_url : str):
+    def __init__(self, notebook_url : str, source_uri : str, source_file_name : str):
         nb = Notebook(notebook_url)
+        self.source_uri = source_uri
+        self.source_file_name = source_file_name
         self.kfp = KfpComponent(nb)
 
     def get_inputs(self):
@@ -36,6 +38,17 @@ class KfpComponentBuilder():
         for output_key, output_value in self.kfp.get_outputs().items():
             return output_key
 
+    def get_parameter_list(self):
+        return_value = str()
+        index = 0
+        for output_key, output_value in self.kfp.get_outputs().items():
+            return_value = return_value + output_key + '="$' + str(index) + '" '
+            index = index + 1
+        for input_key, input_value in self.kfp.get_inputs().items():
+            return_value = return_value + input_key + '="$' + str(index) + '" '
+            index = index + 1
+        return return_value                 
+
         
 
     def get_yaml(self):
@@ -56,7 +69,7 @@ implementation:
         - -ec
         - |
           $mkdir
-          wget https://raw.githubusercontent.com/IBM/claimed/master/component-library/input/input-postgresql.ipynb
+          wget $source_uri
           $call
         - {outputPath: $outputPath}
 $input_for_implementation''')
@@ -69,5 +82,6 @@ $input_for_implementation''')
             outputPath=self.get_output_name(),
             input_for_implementation=self.get_input_for_implementation(),
             mkdir="mkdir -p `echo $0 |sed -e 's/\/[a-zA-Z0-9]*$//'`",
-            call='ipython ./input-postgresql.ipynb output_data_csv="$0" host="$1" database="$2" user="$3" password="$4" port="$5" sql="$6" data_dir="$7"'
-            )
+            source_uri=self.source_uri,
+            call='ipython ' + self.source_file_name + ' ' + self.get_parameter_list()
+        )
