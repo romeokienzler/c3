@@ -6,6 +6,9 @@ import sys
 
 def main():
     args = sys.argv[1:]
+    if len(args) < 4:
+        print('Usage: input_path output_path source_uri(URI to the component source code to be downloaded) source_file_name(file name to be executed)')
+        exit(-1)
     input_path = args[0]
     output_path = args[1]
     source_uri = args[2] # URI to the component source code to be downloaded

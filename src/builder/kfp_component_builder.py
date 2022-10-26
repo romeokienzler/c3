@@ -18,12 +18,14 @@ class KfpComponentBuilder():
                 print(t.substitute(name=input_key, type=input_value[1], description=input_value[0]), file=inputs_str)
             return inputs_str.getvalue()
 
+
     def get_input_for_implementation(self):
         with StringIO() as inputs_str:
             for input_key, input_value in self.kfp.get_inputs().items():
                 t = Template("        - {inputValue: $name}")
                 print(t.substitute(name=input_key), file=inputs_str)
             return inputs_str.getvalue()    
+
 
     def get_outputs(self):
         with StringIO() as outputs_str:
@@ -33,8 +35,8 @@ class KfpComponentBuilder():
                 print(t.substitute(name=output_key, type=output_value[1], description=output_value[0]), file=outputs_str)
             return outputs_str.getvalue()
 
+
     def get_output_name(self):
-        assert len(self.kfp.get_outputs()) == 1, 'exactly one output currently supported'
         for output_key, output_value in self.kfp.get_outputs().items():
             return output_key
 
