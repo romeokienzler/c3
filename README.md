@@ -7,7 +7,7 @@
 
 **TL;DR**
 - takes arbitrary assets (Jupyter notebooks, python/R/shell/SQL scripts) as input
-- automatically creates container images and pushed to container registries
+- automatically creates container images and pushes to container registries
 - automatically installes all required dependencies into the container image
 - creates KubeFlow Pipeline components (target workflow execution engines are pluggable)
 - can be triggered from CICD pipelines
