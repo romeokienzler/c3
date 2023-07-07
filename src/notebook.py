@@ -23,14 +23,19 @@ class Notebook():
                     if "int(" in line:
                         type = 'Integer'
                     elif "float(" in line:
-                        type = 'Float'
+                        type = 'Float'                
+                    elif "bool(" in line:
+                        type = 'Boolean'
                     else:
                         type = 'String'
                     if ',' in line:
                         default=line.split(',')[1].split(')')[0]
                     else:
                         default = None
-                    return_value[env_name]=(comment_line.replace('#', '').strip(),type,default)
+                    return_value[env_name]={
+                        'description': comment_line.replace('#', '').strip(),
+                        'type': type,
+                        'default': default}
                 comment_line = line
         return return_value
 
