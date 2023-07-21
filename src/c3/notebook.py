@@ -20,6 +20,8 @@ class Notebook():
             for line in self.notebook['cells'][4]['source']:
                 if re.search("[\"']" + env_name + "[\"']", line):
                     assert '#' in comment_line, "comment line didn't contain #"
+                    assert ',' not in comment_line, "comment line contains ,"
+
                     if "int(" in line:
                         type = 'Integer'
                     elif "float(" in line:
