@@ -45,7 +45,7 @@ class Notebook():
         requirements = []
         for cell in self.notebook['cells']:
             for cell_content in cell['source']:
-                pattern = r"(![ ]*pip[ ]*install[ ]*)([A-Za-z=0-9.: ]*)"
+                pattern = r"(![ ]*pip[ ]*install[ ]*)([A-Za-z=0-9.\-: ]*)"
                 result = re.findall(pattern,cell_content)
                 if len(result) == 1:
                     requirements.append((result[0][0]+ ' ' +result[0][1])[1:])
