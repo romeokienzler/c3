@@ -7,7 +7,7 @@ class Notebook():
         self.path = path
         with open(path) as json_file:
             self.notebook = json.load(json_file)
-            self.name = self.notebook['cells'][0]['source'][0].replace('#', '').strip()
+            self.name = self.notebook['cells'][0]['source'][0].replace('#', '').replace('_', '-').strip()
             self.description = self.notebook['cells'][1]['source'][0]
             self.envs = self._get_env_vars()
 
