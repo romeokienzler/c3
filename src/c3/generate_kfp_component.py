@@ -1,18 +1,16 @@
-
 import os
 import sys
 import re
 import logging
 import shutil
-from notebook import Notebook
-from pythonscript import Pythonscript
 from string import Template
 from io import StringIO
 from enum import Enum
+from pythonscript import Pythonscript
+from notebook_converter import convert_notebook
 
 
 def generate_component(file_path: str, repository: str, version: str, additional_files: str = None):
-
     root = logging.getLogger()
     root.setLevel('INFO')
 
@@ -29,13 +27,10 @@ def generate_component(file_path: str, repository: str, version: str, additional
     logging.info('additional_files: ' + str(additional_files))
 
     if file_path.endswith('.ipynb'):
-        nb = Notebook(file_path)
-        name = nb.get_name()
-        description = nb.get_description() + " CLAIMED v" + version
-        inputs = nb.get_inputs()
-        outputs = nb.get_outputs()
-        requirements = nb.get_requirements()
-    elif file_path.endswith('.py'):
+        logging.info('Convert notebook to python script')
+        file_path = convert_notebook(file_path)
+
+    if file_path.endswith('.py'):
         py = Pythonscript(file_path)
         name = py.get_name()
         description = py.get_description() + " CLAIMED v" + version
@@ -55,15 +50,16 @@ def generate_component(file_path: str, repository: str, version: str, additional
     def check_variable(var_name):
         return var_name in locals() or var_name in globals()
 
-    target_code = file_path.split('/')[-1:][0]
-    shutil.copy(file_path,target_code)
+    target_code = file_path.split('/')[-1]
+    if file_path != target_code:
+        shutil.copy(file_path, target_code)
     if check_variable('additional_files'):
         if additional_files.startswith('['):
             additional_files_path = 'additional_files_path'
             if not os.path.exists(additional_files_path):
                 os.makedirs(additional_files_path)
             additional_files_local = additional_files_path
-            additional_files=additional_files[1:-1].split(',')
+            additional_files = additional_files[1:-1].split(',')
             print('Additional files to add to container:')
             for additional_file in additional_files:
                 print(additional_file)
@@ -71,9 +67,9 @@ def generate_component(file_path: str, repository: str, version: str, additional
             print(os.listdir(additional_files_path))
         else:
             additional_files_local = additional_files.split('/')[-1:][0]
-            shutil.copy(additional_files,additional_files_local)
+            shutil.copy(additional_files, additional_files_local)
     else:
-        additional_files_local=target_code  # hack
+        additional_files_local = target_code  # hack
         additional_files_path = None
     file = target_code
 
@@ -87,7 +83,7 @@ def generate_component(file_path: str, repository: str, version: str, additional
         with open(file, 'w') as fd:
             fd.write(text)
 
-    requirements_docker = list(map(lambda s: 'RUN '+s, requirements))
+    requirements_docker = list(map(lambda s: 'RUN ' + s, requirements))
     requirements_docker = '\n'.join(requirements_docker)
 
     python_command = 'python' if target_code.endswith('.py') else 'ipython'
@@ -122,12 +118,12 @@ def generate_component(file_path: str, repository: str, version: str, additional
     os.system(f'docker push `echo {repository}/claimed-{name}:latest`')
     parameter_type = Enum('parameter_type', ['INPUT', 'OUTPUT'])
 
-    def get_component_interface(parameters, type : parameter_type):
+    def get_component_interface(parameters, type: parameter_type):
         template_string = str()
         for parameter_name, parameter_options in parameters.items():
             default = ''
             if parameter_options['default'] is not None and type == parameter_type.INPUT:
-                    default = f", default: {parameter_options['default']}"
+                default = f", default: {parameter_options['default']}"
             template_string += f"- {{name: {parameter_name}, type: {parameter_options['type']}, description: {parameter_options['description']}{default}}}"
             template_string += '\n'
         return template_string
@@ -171,19 +167,19 @@ implementation:
 $input_for_implementation''')
 
     yaml = t.substitute(
-                name=name,
-                description=description,
-                inputs=get_component_interface(inputs, parameter_type.INPUT),
-                container_uri=f"{repository}/claimed-{name}",
-                version=version,
-                outputPath=get_output_name(),
-                input_for_implementation=get_input_for_implementation(),
-                call=f'./{target_code} {get_parameter_list()}',
-                python=python_command,
-            )
+        name=name,
+        description=description,
+        inputs=get_component_interface(inputs, parameter_type.INPUT),
+        container_uri=f"{repository}/claimed-{name}",
+        version=version,
+        outputPath=get_output_name(),
+        input_for_implementation=get_input_for_implementation(),
+        call=f'./{target_code} {get_parameter_list()}',
+        python=python_command,
+    )
 
     print(yaml)
-    target_yaml_path = file_path.replace('.ipynb','.yaml').replace('.py','.yaml')
+    target_yaml_path = file_path.replace('.ipynb', '.yaml').replace('.py', '.yaml')
 
     with open(target_yaml_path, "w") as text_file:
         text_file.write(yaml)
@@ -194,7 +190,9 @@ $input_for_implementation''')
         env_entry = f"        - name: {input_key}\n          value: value_of_{input_key}"
         env_entries.append(env_entry)
         env_entries.append('\n')
-    env_entries.pop(-1)
+    # TODO: Is it possible that a component has no inputs?
+    if len(env_entries) != 0:
+        env_entries.pop(-1)
     env_entries = ''.join(env_entries)
 
     job_yaml = f'''apiVersion: batch/v1
@@ -215,7 +213,7 @@ spec:
         - name: image_pull_secret'''
 
     print(job_yaml)
-    target_job_yaml_path = file_path.replace('.ipynb','.job.yaml').replace('.py','.job.yaml')
+    target_job_yaml_path = file_path.replace('.ipynb', '.job.yaml').replace('.py', '.job.yaml')
 
     with open(target_job_yaml_path, "w") as text_file:
         text_file.write(job_yaml)
