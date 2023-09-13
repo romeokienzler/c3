@@ -52,7 +52,7 @@ The c3 compiler requires your notebook to follow a certain pattern:
 5. Cell: Component interface, e.g., `input_path = os.environ.get('input_path')`. Output variables have to start with `output`, more details in the following.
 6. Cell and following: Your code
 
-## Component interface
+### Component interface
 
 The interface consists of input and output variables that are defined by environment variables. Output variables have to start with `output`, e.g., `output_path`. 
 Environment variables and arguments are by default string values. You can cast a specific type by wrapping the `os.environ.get()` into the methods `bool()`, `int()`, or `float()`.
