@@ -12,6 +12,46 @@ from notebook_converter import convert_notebook
 CLAIMED_VERSION = 'V0.1'
 
 
+ADDITIONAL_CODE = """
+# default code for each  operator
+import os
+import sys
+import re
+import logging
+
+# init logger
+default_log_level = 'INFO'
+root = logging.getLogger()
+root.setLevel(default_log_level)
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(default_log_level)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+root.addHandler(handler)
+logging.basicConfig(level=logging.CRITICAL)
+
+# get parameters from args
+parameters = list(filter(
+                lambda s: s.find('=') > -1 and bool(re.match(r'[A-Za-z0-9_]*=[.\/A-Za-z0-9]*', s)),
+                sys.argv
+            ))
+
+# set parameters to env variables
+for parameter in parameters:
+    variable = parameter.split('=')[0]
+    value = '='.join(parameter.split('=')[1:])
+    logging.info(f'Parameter: {variable} = "{value}"')
+    os.environ[variable] = value
+
+# update log level
+log_level = os.environ.get('log_level', default_log_level)
+if default_log_level != log_level:
+    logging.info(f'Updating log level to {log_level}')
+    handler.setLevel(log_level)
+
+"""
+
+
 def generate_component(file_path: str, repository: str, version: str, additional_files: str = None):
     root = logging.getLogger()
     root.setLevel('INFO')
@@ -33,10 +73,21 @@ def generate_component(file_path: str, repository: str, version: str, additional
         target_code = convert_notebook(file_path)
     else:
         target_code = file_path.split('/')[-1]
-        if file_path != target_code:
-            # Copy file to current working directory
-            shutil.copy(file_path, target_code)
+        if file_path == target_code:
+            # use temp file for processing
+            target_code = 'copy_' + target_code
+        # Copy file to current working directory
+        shutil.copy(file_path, target_code)
 
+    if target_code.endswith('.py'):
+        # Add code for logging and cli parameters to the beginning of the script
+        with open(target_code, 'r') as f:
+            script = f.read()
+        script = ADDITIONAL_CODE + script
+        with open(target_code, 'w') as f:
+            f.write(script)
+
+    # getting parameter from the script
     if target_code.endswith('.py'):
         py = Pythonscript(target_code)
         name = py.get_name()
@@ -92,26 +143,19 @@ def generate_component(file_path: str, repository: str, version: str, additional
     requirements_docker = list(map(lambda s: 'RUN ' + s, requirements))
     requirements_docker = '\n'.join(requirements_docker)
 
-    python_command = 'python' if target_code.endswith('.py') else 'ipython'
-
     docker_file = f"""
     FROM registry.access.redhat.com/ubi8/python-39 
     USER root
     RUN dnf install -y java-11-openjdk
     USER default
-    RUN pip install ipython==8.6.0 nbformat==5.7.0
     {requirements_docker}
     ADD {additional_files_local} /opt/app-root/src/
     ADD {target_code} /opt/app-root/src/
     USER root
     RUN chmod -R 777 /opt/app-root/src/
     USER default
-    CMD ["{python_command}", "/opt/app-root/src/{target_code}"]
+    CMD ["python", "/opt/app-root/src/{target_code}"]
     """
-
-    # Remove packages that are not used for python scripts
-    if target_code.endswith('.py'):
-        docker_file = docker_file.replace('RUN pip install ipython==8.6.0 nbformat==5.7.0\n', '')
 
     with open("Dockerfile", "w") as text_file:
         text_file.write(docker_file)
@@ -122,6 +166,7 @@ def generate_component(file_path: str, repository: str, version: str, additional
     os.system(f'docker tag  `echo claimed-{name}:{version}` `echo {repository}/claimed-{name}:latest`')
     os.system(f'docker push `echo {repository}/claimed-{name}:{version}`')
     os.system(f'docker push `echo {repository}/claimed-{name}:latest`')
+
     parameter_type = Enum('parameter_type', ['INPUT', 'OUTPUT'])
 
     def get_component_interface(parameters, type: parameter_type):
@@ -169,7 +214,7 @@ implementation:
         - sh
         - -ec
         - |
-          $python $call
+          python $call
 $input_for_implementation''')
 
     yaml = t.substitute(
@@ -181,7 +226,6 @@ $input_for_implementation''')
         outputPath=get_output_name(),
         input_for_implementation=get_input_for_implementation(),
         call=f'./{target_code} {get_parameter_list()}',
-        python=python_command,
     )
 
     print(yaml)
@@ -211,7 +255,7 @@ spec:
       containers:
       - name: {name}
         image: {repository}/claimed-{name}:{version}
-        command: ["/opt/app-root/bin/{python_command}","/opt/app-root/src/{target_code}"]
+        command: ["/opt/app-root/bin/python","/opt/app-root/src/{target_code}"]
         env:
 {env_entries}
       restartPolicy: OnFailure
