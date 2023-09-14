@@ -9,6 +9,8 @@ from enum import Enum
 from pythonscript import Pythonscript
 from notebook_converter import convert_notebook
 
+CLAIMED_VERSION = 'V0.1'
+
 
 def generate_component(file_path: str, repository: str, version: str, additional_files: str = None):
     root = logging.getLogger()
@@ -28,12 +30,19 @@ def generate_component(file_path: str, repository: str, version: str, additional
 
     if file_path.endswith('.ipynb'):
         logging.info('Convert notebook to python script')
-        file_path = convert_notebook(file_path)
+        target_code = convert_notebook(file_path)
+    else:
+        target_code = file_path.split('/')[-1]
+        if file_path != target_code:
+            # Copy file to current working directory
+            shutil.copy(file_path, target_code)
 
-    if file_path.endswith('.py'):
-        py = Pythonscript(file_path)
+    if target_code.endswith('.py'):
+        py = Pythonscript(target_code)
         name = py.get_name()
-        description = py.get_description() + " CLAIMED v" + version
+        # convert description into a string with a single line
+        description = ('"' + py.get_description().replace('\n', ' ').replace('"', '\'') +
+                       ' – CLAIMED ' + CLAIMED_VERSION + '"')
         inputs = py.get_inputs()
         outputs = py.get_outputs()
         requirements = py.get_requirements()
@@ -50,9 +59,6 @@ def generate_component(file_path: str, repository: str, version: str, additional
     def check_variable(var_name):
         return var_name in locals() or var_name in globals()
 
-    target_code = file_path.split('/')[-1]
-    if file_path != target_code:
-        shutil.copy(file_path, target_code)
     if check_variable('additional_files'):
         if additional_files.startswith('['):
             additional_files_path = 'additional_files_path'
