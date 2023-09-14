@@ -218,8 +218,9 @@ spec:
     with open(target_job_yaml_path, "w") as text_file:
         text_file.write(job_yaml)
 
-    # remove local files
-    os.remove(target_code)
+    # remove temporary files
+    if file_path != target_code:
+        os.remove(target_code)
     os.remove('Dockerfile')
     if additional_files_path is not None:
         shutil.rmtree(additional_files_path, ignore_errors=True)
