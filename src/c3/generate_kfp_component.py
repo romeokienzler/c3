@@ -3,64 +3,18 @@ import sys
 import re
 import logging
 import shutil
+import argparse
 from string import Template
 from io import StringIO
 from enum import Enum
 from pythonscript import Pythonscript
 from notebook_converter import convert_notebook
+from src.templates import component_setup_code, dockerfile_template, kfp_component_template, kubernetes_job_template
 
 CLAIMED_VERSION = 'V0.1'
 
 
-ADDITIONAL_CODE = """
-# default code for each  operator
-import os
-import sys
-import re
-import logging
-
-# init logger
-default_log_level = 'INFO'
-root = logging.getLogger()
-root.setLevel(default_log_level)
-handler = logging.StreamHandler(sys.stdout)
-handler.setLevel(default_log_level)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-root.addHandler(handler)
-logging.basicConfig(level=logging.CRITICAL)
-
-# get parameters from args
-parameters = list(filter(
-                lambda s: s.find('=') > -1 and bool(re.match(r'[A-Za-z0-9_]*=[.\/A-Za-z0-9]*', s)),
-                sys.argv
-            ))
-
-# set parameters to env variables
-for parameter in parameters:
-    variable = parameter.split('=')[0]
-    value = '='.join(parameter.split('=')[1:])
-    logging.info(f'Parameter: {variable} = "{value}"')
-    os.environ[variable] = value
-
-# update log level
-log_level = os.environ.get('log_level', default_log_level)
-if default_log_level != log_level:
-    logging.info(f'Updating log level to {log_level}')
-    handler.setLevel(log_level)
-
-"""
-
-
 def generate_component(file_path: str, repository: str, version: str, additional_files: str = None):
-    root = logging.getLogger()
-    root.setLevel('INFO')
-
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel('INFO')
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    root.addHandler(handler)
 
     logging.info('Parameters: ')
     logging.info('file_path: ' + file_path)
@@ -83,7 +37,7 @@ def generate_component(file_path: str, repository: str, version: str, additional
         # Add code for logging and cli parameters to the beginning of the script
         with open(target_code, 'r') as f:
             script = f.read()
-        script = ADDITIONAL_CODE + script
+        script = component_setup_code + script
         with open(target_code, 'w') as f:
             f.write(script)
 
@@ -107,10 +61,7 @@ def generate_component(file_path: str, repository: str, version: str, additional
     print(outputs)
     print(requirements)
 
-    def check_variable(var_name):
-        return var_name in locals() or var_name in globals()
-
-    if check_variable('additional_files'):
+    if additional_files is not None:
         if additional_files.startswith('['):
             additional_files_path = 'additional_files_path'
             if not os.path.exists(additional_files_path):
@@ -125,6 +76,11 @@ def generate_component(file_path: str, repository: str, version: str, additional
         else:
             additional_files_local = additional_files.split('/')[-1:][0]
             shutil.copy(additional_files, additional_files_local)
+            # ensure the original file is not deleted later
+            if additional_files != additional_files_local:
+                additional_files_path = additional_files_local
+            else:
+                additional_files_path = None
     else:
         additional_files_local = target_code  # hack
         additional_files_path = None
@@ -143,19 +99,11 @@ def generate_component(file_path: str, repository: str, version: str, additional
     requirements_docker = list(map(lambda s: 'RUN ' + s, requirements))
     requirements_docker = '\n'.join(requirements_docker)
 
-    docker_file = f"""
-    FROM registry.access.redhat.com/ubi8/python-39 
-    USER root
-    RUN dnf install -y java-11-openjdk
-    USER default
-    {requirements_docker}
-    ADD {additional_files_local} /opt/app-root/src/
-    ADD {target_code} /opt/app-root/src/
-    USER root
-    RUN chmod -R 777 /opt/app-root/src/
-    USER default
-    CMD ["python", "/opt/app-root/src/{target_code}"]
-    """
+    docker_file = dockerfile_template.substitute(
+        requirements_docker=requirements_docker,
+        target_code=target_code,
+        additional_files_local=additional_files_local,
+    )
 
     with open("Dockerfile", "w") as text_file:
         text_file.write(docker_file)
@@ -164,8 +112,8 @@ def generate_component(file_path: str, repository: str, version: str, additional
     os.system(f'docker build --platform=linux/amd64 -t `echo claimed-{name}:{version}` .')
     os.system(f'docker tag  `echo claimed-{name}:{version}` `echo {repository}/claimed-{name}:{version}`')
     os.system(f'docker tag  `echo claimed-{name}:{version}` `echo {repository}/claimed-{name}:latest`')
-    os.system(f'docker push `echo {repository}/claimed-{name}:{version}`')
     os.system(f'docker push `echo {repository}/claimed-{name}:latest`')
+    os.system(f'docker push `echo {repository}/claimed-{name}:{version}`')
 
     parameter_type = Enum('parameter_type', ['INPUT', 'OUTPUT'])
 
@@ -201,23 +149,7 @@ def generate_component(file_path: str, repository: str, version: str, additional
             index = index + 1
         return return_value
 
-    t = Template('''name: $name
-description: $description
-
-inputs:
-$inputs
-
-implementation:
-    container:
-        image: $container_uri:$version
-        command:
-        - sh
-        - -ec
-        - |
-          python $call
-$input_for_implementation''')
-
-    yaml = t.substitute(
+    yaml = kfp_component_template.substitute(
         name=name,
         description=description,
         inputs=get_component_interface(inputs, parameter_type.INPUT),
@@ -245,22 +177,13 @@ $input_for_implementation''')
         env_entries.pop(-1)
     env_entries = ''.join(env_entries)
 
-    job_yaml = f'''apiVersion: batch/v1
-kind: Job
-metadata:
-  name: {name}
-spec:
-  template:
-    spec:
-      containers:
-      - name: {name}
-        image: {repository}/claimed-{name}:{version}
-        command: ["/opt/app-root/bin/python","/opt/app-root/src/{target_code}"]
-        env:
-{env_entries}
-      restartPolicy: OnFailure
-      imagePullSecrets:
-        - name: image_pull_secret'''
+    job_yaml = kubernetes_job_template.substitute(
+        name=name,
+        repository=repository,
+        version=version,
+        target_code=target_code,
+        env_entries=env_entries,
+    )
 
     print(job_yaml)
     target_job_yaml_path = file_path.replace('.ipynb', '.job.yaml').replace('.py', '.job.yaml')
@@ -277,7 +200,6 @@ spec:
 
 
 if __name__ == '__main__':
-    import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--file_path', type=str, required=True,
@@ -288,7 +210,21 @@ if __name__ == '__main__':
                         help='Image version')
     parser.add_argument('--additional_files', type=str,
                         help='Comma-separated list of paths to additional files to include in the container image')
+    parser.add_argument('--log_level', type=str, default='INFO')
+
 
     args = parser.parse_args()
 
-    generate_component(**vars(args))
+    # Init logging
+    root = logging.getLogger()
+    root.setLevel(args.log_level)
+    handler = logging.StreamHandler(sys.stdout)
+    formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    handler.setLevel(args.log_level)
+    root.addHandler(handler)
+
+    generate_component(file_path=args.file_path,
+                       repository=args.repository,
+                       version=args.version,
+                       additional_files=args.additional_files)
