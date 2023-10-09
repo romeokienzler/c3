@@ -31,6 +31,8 @@ gw_coordinator_path = os.environ.get('gw_coordinator_path')
 gw_lock_file_suffix = os.environ.get('gw_lock_file_suffix', '.lock')
 # processed file suffix
 gw_processed_file_suffix = os.environ.get('gw_lock_file_suffix', '.processed')
+# error file suffix
+gw_error_file_suffix = os.environ.get('gw_error_file_suffix', '.err')
 # timeout in seconds to remove lock file from struggling job (default 1 hour)
 gw_lock_timeout = int(os.environ.get('gw_lock_timeout', 3600))
 
@@ -71,7 +73,8 @@ def identify_batches_from_pattern(file_path_patterns, group_by):
 
     # get batches by applying the group by function to all file paths
     for path_string in all_files:
-        exec('part = path_string' + group_by)
+        part = eval('str(path_string)' + group_by, {"group_by": group_by, "path_string": path_string})
+        assert part != '', f'Could not extract batch with path_string {path_string} and group_by {group_by}'
         batches.add(part)
 
     logging.info(f'Identified {len(batches)} batches')
@@ -85,6 +88,7 @@ def perform_process(process, batch):
     logging.debug(f'Check coordinator files for batch {batch}.')
     # init coordinator files
     lock_file = Path(gw_coordinator_path) / (batch + gw_lock_file_suffix)
+    error_file = Path(gw_coordinator_path) / (batch + gw_error_file_suffix)
     processed_file = Path(gw_coordinator_path) / (batch + gw_processed_file_suffix)
 
     if lock_file.exists():
@@ -100,24 +104,34 @@ def perform_process(process, batch):
         logging.debug(f'Batch {batch} is processed.')
         return
 
+    if error_file.exists():
+        logging.debug(f'Batch {batch} has error.')
+        return
+
     logging.debug(f'Locking batch {batch}.')
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
     lock_file.touch()
 
     # processing files with custom process
     logging.info(f'Processing batch {batch}.')
     try:
         target_files = process(batch, ${component_inputs})
-    except Exception as e:
-        # Remove lock file before raising the error
+    except Exception as err:
+        logging.error(f'{type(err).__name__} in batch {batch}: {err}')
+        # Write error to file
+        with open(error_file, 'w') as f:
+            f.write(f"{type(err).__name__} in batch {batch}: {err}")
         lock_file.unlink()
-        raise e
+        logging.error(f'Continue processing.')
+        return
 
     # optional verify target files
     if target_files is not None:
         if isinstance(target_files, str):
             target_files = [target_files]
         for target_file in target_files:
-            assert os.path.exists(target_file), f'Target file {target_file} does not exist for batch {batch}.'
+            if not os.path.exists(target_file):
+                logging.error(f'Target file {target_file} does not exist for batch {batch}.')
     else:
         logging.info(f'Cannot verify batch {batch} (target files not provided).')
 
@@ -142,7 +156,11 @@ def process_wrapper(sub_process, pre_process=None, post_process=None):
 
         # wait until preprocessing is finished
         processed_file = Path(gw_coordinator_path) / ('preprocess' + gw_processed_file_suffix)
+        error_file = Path(gw_coordinator_path) / ('preprocess' + gw_error_file_suffix)
         while not processed_file.exists():
+            if error_file.exists():
+                logging.error('Error in preprocessing. See error file in coordinator path.')
+                exit(1)
             logging.info(f'Waiting for preprocessing to finish.')
             time.sleep(60)
 
@@ -163,14 +181,16 @@ def process_wrapper(sub_process, pre_process=None, post_process=None):
     processed_status = [(Path(gw_coordinator_path) / (batch + gw_processed_file_suffix)).exists() for batch in batches]
     lock_status = [(Path(gw_coordinator_path) / (batch + gw_lock_file_suffix)).exists() for batch in batches]
     if all(processed_status):
-        if post_process is not None:
-            # run postprocessing
-            perform_process(post_process, 'postprocess')
-
         logging.info('Finished all processes.')
     else:
         logging.info(f'Finished current process. Status batches: '
                      f'{sum(processed_status)} processed / {sum(lock_status)} locked / {len(processed_status)} total')
+
+    # Check for errors
+    error_status = [(Path(gw_coordinator_path) / (batch + gw_error_file_suffix)).exists()
+                    for batch in list(batches) + ['preprocess', 'postprocess']]
+    if sum(error_status):
+        logging.error(f'Found {sum(error_status)} errors. See error files in coordinator path.')
 
 
 if __name__ == '__main__':

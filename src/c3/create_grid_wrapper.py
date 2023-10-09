@@ -2,10 +2,11 @@ import logging
 import os
 import argparse
 import sys
+from string import Template
 from pythonscript import Pythonscript
 from notebook_converter import convert_notebook
-from generate_kfp_component import generate_component
-from src.templates import grid_wrapper_template, gw_component_setup_code
+from create_operator import create_operator
+from templates import grid_wrapper_template, gw_component_setup_code, dockerfile_template
 
 
 def wrap_component(component_path,
@@ -33,6 +34,8 @@ def wrap_component(component_path,
 
     # Write edited code to file
     grid_wrapper_file_path = os.path.join(os.path.dirname(component_path), f'gw_{component_name}.py')
+    # remove 'component_' from gw path
+    grid_wrapper_file_path = grid_wrapper_file_path.replace('component_', '')
     with open(grid_wrapper_file_path, 'w') as f:
         f.write(grid_wrapper_code)
 
@@ -107,7 +110,6 @@ def edit_component_code(file_path):
 
 def apply_grid_wrapper(file_path, component_process, component_pre_process, component_post_process,
                        *args, **kwargs):
-
     assert file_path.endswith('.py') or file_path.endswith('.ipynb'), \
         "Please provide a component file path to a python script or notebook."
 
@@ -115,15 +117,16 @@ def apply_grid_wrapper(file_path, component_process, component_pre_process, comp
 
     description, interface, inputs, dependencies = get_component_elements(file_path)
 
-    component_elements = dict(component_path=file_path,
-                              component_description=description,
-                              component_dependencies=dependencies,
-                              component_interface=interface,
-                              component_inputs=inputs,
-                              component_process=component_process,
-                              component_pre_process=component_pre_process,
-                              component_post_process=component_post_process,
-                              )
+    component_elements = dict(
+        component_path=file_path,
+        component_description=description,
+        component_dependencies=dependencies,
+        component_interface=interface,
+        component_inputs=inputs,
+        component_process=component_process,
+        component_pre_process=component_pre_process,
+        component_post_process=component_post_process,
+    )
 
     logging.debug('Wrap component with parameters:')
     for component, value in component_elements.items():
@@ -137,7 +140,7 @@ def apply_grid_wrapper(file_path, component_process, component_pre_process, comp
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--file_path', type=str, required=True,
-                        help = 'Path to python script or notebook')
+                        help='Path to python script or notebook')
     parser.add_argument('-p', '--component_process', type=str, required=True,
                         help='Name of the component sub process that is executed for each batch.')
     parser.add_argument('-pre', '--component_pre_process', type=str,
@@ -152,6 +155,8 @@ if __name__ == '__main__':
     parser.add_argument('-a', '--additional_files', type=str,
                         help='Comma-separated list of paths to additional files to include in the container image')
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
+    parser.add_argument('--dockerfile_template_path', type=str, default='',
+                        help='Path to custom dockerfile template')
 
     args = parser.parse_args()
 
@@ -178,9 +183,18 @@ if __name__ == '__main__':
             else:
                 args.additional_files = f'[{args.additional_files},{component_path}]'
 
-        generate_component(file_path=grid_wrapper_file_path,
-                           repository=args.repository,
-                           version=args.version,
-                           additional_files=args.additional_files)
+        # Update dockerfile template if specified
+        if args.dockerfile_template_path != '':
+            logging.info(f'Uses custom dockerfile template from {args.dockerfile_template_path}')
+            with open(args.dockerfile_template_path, 'r') as f:
+                dockerfile_template = Template(f.read())
+
+        create_operator(
+            file_path=grid_wrapper_file_path,
+            repository=args.repository,
+            version=args.version,
+            dockerfile_template=dockerfile_template,
+            additional_files=args.additional_files
+        )
 
         # TODO: Delete component_path?

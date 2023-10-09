@@ -15,10 +15,10 @@ GRID_WRAPPER_FILE = 'grid_wrapper_template.py'
 template_path = Path(os.path.dirname(__file__))
 
 with open(template_path / COMPONENT_SETUP_CODE, 'r') as f:
-    component_setup_code = Template(f.read())
+    component_setup_code = f.read()
 
 with open(template_path / GW_COMPONENT_SETUP_CODE, 'r') as f:
-    gw_component_setup_code = Template(f.read())
+    gw_component_setup_code = f.read()
 
 with open(template_path / DOCKERFILE_FILE, 'r') as f:
     dockerfile_template = Template(f.read())
