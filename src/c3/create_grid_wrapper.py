@@ -15,8 +15,6 @@ def wrap_component(component_path,
                    component_interface,
                    component_inputs,
                    component_process,
-                   component_pre_process,
-                   component_post_process,
                    ):
     # get component name from path
     component_name = os.path.splitext(os.path.basename(component_path))[0]
@@ -28,8 +26,6 @@ def wrap_component(component_path,
         component_inputs=component_inputs,
         component_interface=component_interface,
         component_process=component_process,
-        component_pre_process=component_pre_process,
-        component_post_process=component_post_process,
     )
 
     # Write edited code to file
@@ -108,8 +104,7 @@ def edit_component_code(file_path):
     return target_file
 
 
-def apply_grid_wrapper(file_path, component_process, component_pre_process, component_post_process,
-                       *args, **kwargs):
+def apply_grid_wrapper(file_path, component_process, *args, **kwargs):
     assert file_path.endswith('.py') or file_path.endswith('.ipynb'), \
         "Please provide a component file path to a python script or notebook."
 
@@ -123,9 +118,7 @@ def apply_grid_wrapper(file_path, component_process, component_pre_process, comp
         component_dependencies=dependencies,
         component_interface=interface,
         component_inputs=inputs,
-        component_process=component_process,
-        component_pre_process=component_pre_process,
-        component_post_process=component_post_process,
+        component_process=component_process
     )
 
     logging.debug('Wrap component with parameters:')
@@ -143,11 +136,6 @@ if __name__ == '__main__':
                         help='Path to python script or notebook')
     parser.add_argument('-p', '--component_process', type=str, required=True,
                         help='Name of the component sub process that is executed for each batch.')
-    parser.add_argument('-pre', '--component_pre_process', type=str,
-                        help='Name of the component pre process which is executed once before parallelization.')
-    parser.add_argument('-post', '--component_post_process', type=str,
-                        help='Name of the component post process which is executed once after parallelization.')
-
     parser.add_argument('-r', '--repository', type=str,
                         help='Container registry address, e.g. docker.io/<your_username>')
     parser.add_argument('-v', '--version', type=str,
