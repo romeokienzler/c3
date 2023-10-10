@@ -6,7 +6,7 @@ from string import Template
 from pythonscript import Pythonscript
 from notebook_converter import convert_notebook
 from create_operator import create_operator
-from templates import grid_wrapper_template, gw_component_setup_code, dockerfile_template
+from templates import grid_wrapper_template, cos_grid_wrapper_template, gw_component_setup_code, dockerfile_template
 
 
 def wrap_component(component_path,
@@ -15,11 +15,13 @@ def wrap_component(component_path,
                    component_interface,
                    component_inputs,
                    component_process,
+                   cos,
                    ):
     # get component name from path
     component_name = os.path.splitext(os.path.basename(component_path))[0]
 
-    grid_wrapper_code = grid_wrapper_template.substitute(
+    gw_template = cos_grid_wrapper_template if cos else grid_wrapper_template
+    grid_wrapper_code = gw_template.substitute(
         component_name=component_name,
         component_description=component_description,
         component_dependencies=component_dependencies,
@@ -29,7 +31,8 @@ def wrap_component(component_path,
     )
 
     # Write edited code to file
-    grid_wrapper_file_path = os.path.join(os.path.dirname(component_path), f'gw_{component_name}.py')
+    grid_wrapper_file = f'cgw_{component_name}.py' if cos else f'gw_{component_name}.py'
+    grid_wrapper_file_path = os.path.join(os.path.dirname(component_path), grid_wrapper_file)
     # remove 'component_' from gw path
     grid_wrapper_file_path = grid_wrapper_file_path.replace('component_', '')
     with open(grid_wrapper_file_path, 'w') as f:
@@ -104,7 +107,7 @@ def edit_component_code(file_path):
     return target_file
 
 
-def apply_grid_wrapper(file_path, component_process, *args, **kwargs):
+def apply_grid_wrapper(file_path, component_process, cos, *args, **kwargs):
     assert file_path.endswith('.py') or file_path.endswith('.ipynb'), \
         "Please provide a component file path to a python script or notebook."
 
@@ -126,7 +129,7 @@ def apply_grid_wrapper(file_path, component_process, *args, **kwargs):
         logging.debug(component + ':\n' + str(value) + '\n')
 
     logging.info('Wrap component')
-    grid_wrapper_file_path = wrap_component(**component_elements)
+    grid_wrapper_file_path = wrap_component(cos=cos, **component_elements)
     return grid_wrapper_file_path, file_path
 
 
@@ -136,6 +139,8 @@ if __name__ == '__main__':
                         help='Path to python script or notebook')
     parser.add_argument('-p', '--component_process', type=str, required=True,
                         help='Name of the component sub process that is executed for each batch.')
+    parser.add_argument('-cos', action=argparse.BooleanOptionalAction, default=False,
+                        help='Creates a grid wrapper for processing COS files')
     parser.add_argument('-r', '--repository', type=str,
                         help='Container registry address, e.g. docker.io/<your_username>')
     parser.add_argument('-v', '--version', type=str,
