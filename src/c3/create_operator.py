@@ -8,6 +8,9 @@ from string import Template
 from io import StringIO
 from pythonscript import Pythonscript
 from notebook_converter import convert_notebook
+
+# Update sys path to load templates
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from templates import component_setup_code, dockerfile_template, kfp_component_template, kubernetes_job_template
 
 CLAIMED_VERSION = 'V0.1'
@@ -81,11 +84,11 @@ def create_operator(file_path: str,
             print(os.listdir(additional_files_path))
         else:
             additional_files_local = additional_files.split('/')[-1:][0]
-            shutil.copy(additional_files, additional_files_local)
-            # ensure the original file is not deleted later
             if additional_files != additional_files_local:
+                shutil.copy(additional_files, additional_files_local)
                 additional_files_path = additional_files_local
             else:
+                # ensure the original file is not deleted later
                 additional_files_path = None
     else:
         additional_files_local = target_code  # hack
