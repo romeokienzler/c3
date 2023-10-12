@@ -35,6 +35,8 @@ gw_processed_file_suffix = os.environ.get('gw_lock_file_suffix', '.processed')
 gw_error_file_suffix = os.environ.get('gw_error_file_suffix', '.err')
 # timeout in seconds to remove lock file from struggling job (default 1 hour)
 gw_lock_timeout = int(os.environ.get('gw_lock_timeout', 3600))
+# ignore error files and rerun batches with errors
+gw_ignore_error_files = bool(os.environ.get('gw_ignore_error_files', False))
 
 # component interface
 ${component_interface}
@@ -68,8 +70,9 @@ def identify_batches_from_pattern(file_path_patterns, group_by):
     # Iterate over comma-separated paths
     for file_path_pattern in file_path_patterns.split(','):
         logging.info(f'Get file paths from pattern: {file_path_pattern}')
-        all_files.extend(glob.glob(file_path_pattern.strip()))
-    assert len(all_files) > 0, f"Found no files with file_path_patterns {file_path_patterns}."
+        files = glob.glob(file_path_pattern.strip())
+        assert len(files) > 0, f"Found no files with file_path_pattern {file_path_pattern}."
+        all_files.extend(files)
 
     # get batches by applying the group by function to all file paths
     for path_string in all_files:
@@ -79,8 +82,7 @@ def identify_batches_from_pattern(file_path_patterns, group_by):
 
     logging.info(f'Identified {len(batches)} batches')
     logging.debug(f'List of batches: {batches}')
-    assert len(all_files) > 0, (f"Found batches with group_by {group_by}. "
-                                f"Identified {len(all_files)} files, e.g., {all_files[:10]}.")
+
     return batches
 
 
@@ -105,8 +107,11 @@ def perform_process(process, batch):
         return
 
     if error_file.exists():
-        logging.debug(f'Batch {batch} has error.')
-        return
+        if gw_ignore_error_files:
+            logging.info(f'Ignoring previous error in batch {batch} and rerun.')
+        else:
+            logging.debug(f'Batch {batch} has error.')
+            return
 
     logging.debug(f'Locking batch {batch}.')
     lock_file.parent.mkdir(parents=True, exist_ok=True)
@@ -139,7 +144,12 @@ def perform_process(process, batch):
     processed_file.touch()
 
     # Remove lock file
-    lock_file.unlink()
+    if lock_file.exists():
+        lock_file.unlink()
+    else:
+        logging.warning(f'Lock file {lock_file} was removed by another process. '
+                        f'Consider increasing gw_lock_timeout (currently {gw_lock_timeout}s) to repeated processing.')
+
 
 
 def process_wrapper(sub_process):
@@ -148,7 +158,8 @@ def process_wrapper(sub_process):
     time.sleep(delay)
 
     # Init coordinator dir
-    Path(gw_coordinator_path).mkdir(exist_ok=True, parents=True)
+    coordinator_dir = Path(gw_coordinator_path)
+    coordinator_dir.mkdir(exist_ok=True, parents=True)
 
     # get batches
     if gw_batch_file is not None and os.path.isfile(gw_batch_file):
@@ -164,15 +175,19 @@ def process_wrapper(sub_process):
         perform_process(sub_process, batch)
 
     # Check and log status of batches
-    processed_status = [(Path(gw_coordinator_path) / (batch + gw_processed_file_suffix)).exists() for batch in batches]
-    lock_status = [(Path(gw_coordinator_path) / (batch + gw_lock_file_suffix)).exists() for batch in batches]
-    error_status = [(Path(gw_coordinator_path) / (batch + gw_error_file_suffix)).exists() for batch in batches]
+    processed_status = [(coordinator_dir / (batch + gw_processed_file_suffix)).exists() for batch in batches]
+    lock_status = [(coordinator_dir / (batch + gw_lock_file_suffix)).exists() for batch in batches]
+    error_status = [(coordinator_dir / (batch + gw_error_file_suffix)).exists() for batch in batches]
 
     logging.info(f'Finished current process. Status batches: '
                  f'{sum(processed_status)} processed / {sum(lock_status)} locked / {sum(error_status)} errors / {len(processed_status)} total')
 
     if sum(error_status):
-        logging.error(f'Found errors. See error files in coordinator path.')
+        logging.error(f'Found errors! Resolve errors and rerun operator with gw_ignore_error_files=True.')
+        # print all error messages
+        for error_file in coordinator_dir.glob('**/*' + gw_error_file_suffix):
+            with open(error_file, 'r') as f:
+                logging.error(f.read())
 
 
 if __name__ == '__main__':

@@ -10,6 +10,7 @@ DOCKERFILE_FILE = 'dockerfile_template'
 KFP_COMPONENT_FILE = 'kfp_component_template.yaml'
 KUBERNETES_JOB_FILE = 'kubernetes_job_template.job.yaml'
 GRID_WRAPPER_FILE = 'grid_wrapper_template.py'
+COS_GRID_WRAPPER_FILE = 'cos_grid_wrapper_template.py'
 
 # load templates
 template_path = Path(os.path.dirname(__file__))
@@ -31,3 +32,6 @@ with open(template_path / KUBERNETES_JOB_FILE, 'r') as f:
 
 with open(template_path / GRID_WRAPPER_FILE, 'r') as f:
     grid_wrapper_template = Template(f.read())
+
+with open(template_path / COS_GRID_WRAPPER_FILE, 'r') as f:
+    cos_grid_wrapper_template = Template(f.read())
