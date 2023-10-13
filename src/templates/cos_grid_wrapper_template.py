@@ -224,7 +224,7 @@ def perform_process(process, batch, cos_files):
         # Write error to file
         with s3coordinator.open(error_file, 'w') as f:
             f.write(f"{type(err).__name__} in batch {batch}: {err}")
-        lock_file.unlink()
+        s3coordinator.rm(lock_file)
         logging.error(f'Continue processing.')
         return
 
@@ -235,7 +235,7 @@ def perform_process(process, batch, cos_files):
         for target_file in target_files:
             if not os.path.exists(target_file):
                 logging.error(f'Target file {target_file} does not exist for batch {batch}.')
-        if any([not t.starts_with(gw_local_target_path) for t in target_files]):
+        if any([not str(t).startswith(gw_local_target_path) for t in target_files]):
             logging.warning('Some target files are not in target path. Only files in target path are uploaded.')
     else:
         logging.info(f'Cannot verify batch {batch} (target files not provided). Using files in target_path.')
