@@ -190,4 +190,5 @@ if __name__ == '__main__':
             additional_files=args.additional_files
         )
 
-        # TODO: Delete component_path?
+        logging.info('Remove local component file')
+        os.remove(component_path)
