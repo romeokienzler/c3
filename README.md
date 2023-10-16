@@ -36,13 +36,17 @@ pip install -e src
 
 Just run the following command with your python script or notebook: 
 ```sh
-python <path/to/c3>/src/c3/generate_kfp_component.py --file_path "<your-operator-script>.py" --version "X.X" --repository "us.icr.io/<namespace>" --additional_files "[file1,file2]"
+python <path/to/c3>/src/c3/create_operator.py --file_path "<your-operator-script>.py" --version "X.X" --repository "<registry>/<namespace>" --additional_files "[file1,file2]"
 ```
 
-Your code include certain requirements which are explained in [Getting Started](GettingStarted.md). 
+Your code needs to follow certain requirements which are explained in [Getting Started](GettingStarted.md). 
 
 
 ## Getting Help
+
+```sh
+python src/c3/create_operator.py --help
+```
 
 We welcome your questions, ideas, and feedback. Please create an [issue](https://github.com/claimed-framework/component-library/issues) or a [discussion thread](https://github.com/claimed-framework/component-library/discussions).
 Please see [VULNERABILITIES.md](VULNERABILITIES.md) for reporting vulnerabilities.
