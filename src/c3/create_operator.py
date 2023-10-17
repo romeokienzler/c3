@@ -7,7 +7,7 @@ import argparse
 from string import Template
 from io import StringIO
 from pythonscript import Pythonscript
-from notebook_converter import convert_notebook
+from utils import convert_notebook, get_image_version
 
 # Update sys path to load templates
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -25,7 +25,7 @@ def create_operator(file_path: str,
     logging.info('Parameters: ')
     logging.info('file_path: ' + file_path)
     logging.info('repository: ' + repository)
-    logging.info('version: ' + version)
+    logging.info('version: ' + str(version))
     logging.info('additional_files: ' + str(additional_files))
 
     if file_path.endswith('.ipynb'):
@@ -117,6 +117,10 @@ def create_operator(file_path: str,
     logging.info('Create Dockerfile')
     with open("Dockerfile", "w") as text_file:
         text_file.write(docker_file)
+        
+    if version is None:
+        # auto increase version based on registered images
+        version = get_image_version(repository, name)
 
     logging.info(f'Build and push image to {repository}/claimed-{name}:{version}')
     os.system(f'docker build --platform=linux/amd64 -t `echo claimed-{name}:{version}` .')
@@ -224,8 +228,8 @@ if __name__ == '__main__':
                         help='Path to python script or notebook')
     parser.add_argument('-r', '--repository', type=str, required=True,
                         help='Container registry address, e.g. docker.io/<your_username>')
-    parser.add_argument('-v', '--version', type=str, required=True,
-                        help='Image version')
+    parser.add_argument('-v', '--version', type=str, default=None,
+                        help='Image version. Increases the version numer of image:latest if not provided.')
     parser.add_argument('-a', '--additional_files', type=str,
                         help='Comma-separated list of paths to additional files to include in the container image')
     parser.add_argument('-l', '--log_level', type=str, default='INFO')

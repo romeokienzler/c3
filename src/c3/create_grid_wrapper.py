@@ -4,7 +4,7 @@ import argparse
 import sys
 from string import Template
 from pythonscript import Pythonscript
-from notebook_converter import convert_notebook
+from utils import convert_notebook
 from create_operator import create_operator
 from templates import grid_wrapper_template, cos_grid_wrapper_template, gw_component_setup_code, dockerfile_template
 
@@ -141,9 +141,9 @@ if __name__ == '__main__':
                         help='Name of the component sub process that is executed for each batch.')
     parser.add_argument('-cos', action=argparse.BooleanOptionalAction, default=False,
                         help='Creates a grid wrapper for processing COS files')
-    parser.add_argument('-r', '--repository', type=str,
+    parser.add_argument('-r', '--repository', type=str, default=None,
                         help='Container registry address, e.g. docker.io/<your_username>')
-    parser.add_argument('-v', '--version', type=str,
+    parser.add_argument('-v', '--version', type=str, default=None,
                         help='Image version')
     parser.add_argument('-a', '--additional_files', type=str,
                         help='Comma-separated list of paths to additional files to include in the container image')
@@ -164,7 +164,7 @@ if __name__ == '__main__':
 
     grid_wrapper_file_path, component_path = apply_grid_wrapper(**vars(args))
 
-    if args.repository is not None and args.version is not None:
+    if args.repository is not None:
         logging.info('Generate CLAIMED operator for grid wrapper')
 
         # Add component path and init file path to additional_files
