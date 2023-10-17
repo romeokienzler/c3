@@ -157,7 +157,7 @@ if __name__ == '__main__':
     root = logging.getLogger()
     root.setLevel(args.log_level)
     handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     handler.setLevel(args.log_level)
     root.addHandler(handler)
@@ -187,7 +187,8 @@ if __name__ == '__main__':
             repository=args.repository,
             version=args.version,
             dockerfile_template=dockerfile_template,
-            additional_files=args.additional_files
+            additional_files=args.additional_files,
+            log_level=args.log_level,
         )
 
         logging.info('Remove local component file')

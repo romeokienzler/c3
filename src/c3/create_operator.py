@@ -4,6 +4,7 @@ import re
 import logging
 import shutil
 import argparse
+import subprocess
 from string import Template
 from io import StringIO
 from pythonscript import Pythonscript
@@ -21,6 +22,7 @@ def create_operator(file_path: str,
                     version: str,
                     dockerfile_template: str,
                     additional_files: str = None,
+                    log_level='INFO',
                     ):
     logging.info('Parameters: ')
     logging.info('file_path: ' + file_path)
@@ -93,17 +95,6 @@ def create_operator(file_path: str,
     else:
         additional_files_local = target_code  # hack
         additional_files_path = None
-    file = target_code
-
-    # read and replace '!pip' in notebooks
-    with open(file, 'r') as fd:
-        text, counter = re.subn(r'!pip', '#!pip', fd.read(), re.I)
-
-    # check if there is at least a  match
-    if counter > 0:
-        # edit the file
-        with open(file, 'w') as fd:
-            fd.write(text)
 
     requirements_docker = list(map(lambda s: 'RUN ' + s, requirements))
     requirements_docker = '\n'.join(requirements_docker)
@@ -122,12 +113,41 @@ def create_operator(file_path: str,
         # auto increase version based on registered images
         version = get_image_version(repository, name)
 
-    logging.info(f'Build and push image to {repository}/claimed-{name}:{version}')
-    os.system(f'docker build --platform=linux/amd64 -t `echo claimed-{name}:{version}` .')
-    os.system(f'docker tag  `echo claimed-{name}:{version}` `echo {repository}/claimed-{name}:{version}`')
-    os.system(f'docker tag  `echo claimed-{name}:{version}` `echo {repository}/claimed-{name}:latest`')
-    os.system(f'docker push `echo {repository}/claimed-{name}:latest`')
-    os.system(f'docker push `echo {repository}/claimed-{name}:{version}`')
+    logging.info(f'Building container image claimed-{name}:{version}')
+    try:
+        subprocess.run(
+            ['docker', 'build', '--platform', 'linux/amd64', '-t', f'claimed-{name}:{version}', '.'],
+            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
+        )
+        logging.debug(f'Tagging images with "latest" and "{version}"')
+        subprocess.run(
+            ['docker', 'tag', f'claimed-{name}:{version}', f'{repository}/claimed-{name}:{version}'],
+            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
+        )
+        subprocess.run(
+            ['docker', 'tag', f'claimed-{name}:{version}', f'{repository}/claimed-{name}:latest'],
+            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
+        )
+        logging.info('Successfully built image')
+    except:
+        logging.error(f'Failed to build image with docker.')
+        pass
+
+    logging.info(f'Pushing images to registry {repository}')
+    try:
+        subprocess.run(
+            ['docker', 'push', f'{repository}/claimed-{name}:latest'],
+            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
+        )
+        subprocess.run(
+            ['docker', 'push', f'{repository}/claimed-{name}:{version}'],
+            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
+        )
+        logging.info('Successfully pushed image to registry')
+    except:
+        logging.error(f'Could not push images to namespace {repository}. '
+                      f'Please check if docker is logged in or select a namespace with access.')
+        pass
 
     def get_component_interface(parameters):
         template_string = str()
@@ -241,7 +261,7 @@ if __name__ == '__main__':
     root = logging.getLogger()
     root.setLevel(args.log_level)
     handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     handler.setLevel(args.log_level)
     root.addHandler(handler)
@@ -257,5 +277,6 @@ if __name__ == '__main__':
         repository=args.repository,
         version=args.version,
         dockerfile_template=dockerfile_template,
-        additional_files=args.additional_files
+        additional_files=args.additional_files,
+        log_level=args.log_level,
     )
