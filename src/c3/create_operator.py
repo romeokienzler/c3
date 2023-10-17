@@ -33,13 +33,15 @@ def create_operator(file_path: str,
     if file_path.endswith('.ipynb'):
         logging.info('Convert notebook to python script')
         target_code = convert_notebook(file_path)
-    else:
+    elif file_path.endswith('.py'):
         target_code = file_path.split('/')[-1]
         if file_path == target_code:
             # use temp file for processing
             target_code = 'claimed_' + target_code
         # Copy file to current working directory
         shutil.copy(file_path, target_code)
+    else:
+        raise NotImplementedError('Please provide a file_path to a jupyter notebook or python script.')
 
     if target_code.endswith('.py'):
         # Add code for logging and cli parameters to the beginning of the script
@@ -49,8 +51,7 @@ def create_operator(file_path: str,
         with open(target_code, 'w') as f:
             f.write(script)
 
-    # getting parameter from the script
-    if target_code.endswith('.py'):
+        # getting parameter from the script
         py = Pythonscript(target_code)
         name = py.get_name()
         # convert description into a string with a single line
@@ -60,7 +61,7 @@ def create_operator(file_path: str,
         outputs = py.get_outputs()
         requirements = py.get_requirements()
     else:
-        raise NotImplementedError('Please provide a file_path to a jupyter notebook or python script.')
+        raise NotImplementedError('C3 currently only supports jupyter notebook or python script.')
     
     # Strip 'claimed-' from name of copied temp file
     if name.startswith('claimed-'):
@@ -73,27 +74,18 @@ def create_operator(file_path: str,
     logging.info('Requirements: ' + str(requirements))
 
     if additional_files is not None:
-        if additional_files.startswith('['):
-            additional_files_path = 'additional_files_path'
-            if not os.path.exists(additional_files_path):
-                os.makedirs(additional_files_path)
-            additional_files_local = additional_files_path
-            additional_files = additional_files[1:-1].split(',')
-            print('Additional files to add to container:')
-            for additional_file in additional_files:
-                print(additional_file)
-                shutil.copy(additional_file, additional_files_local)
-            print(os.listdir(additional_files_path))
-        else:
-            additional_files_local = additional_files.split('/')[-1:][0]
-            if additional_files != additional_files_local:
-                shutil.copy(additional_files, additional_files_local)
-                additional_files_path = additional_files_local
-            else:
-                # ensure the original file is not deleted later
-                additional_files_path = None
+        additional_files_path = 'additional_files_path'
+        while os.path.exists(additional_files_path):
+            # ensures using a new directory
+            additional_files_path += '_temp'
+        logging.debug(f'Create dir for additional files {additional_files_path}')
+        os.makedirs(additional_files_path)
+        # Strip [] from backward compatibility
+        additional_files = additional_files.strip('[]').split(',')
+        for additional_file in additional_files:
+            shutil.copy(additional_file.strip(), additional_files_path)
+        logging.info(f'Selected additional files: {os.listdir(additional_files_path)}')
     else:
-        additional_files_local = target_code  # hack
         additional_files_path = None
 
     requirements_docker = list(map(lambda s: 'RUN ' + s, requirements))
@@ -102,7 +94,7 @@ def create_operator(file_path: str,
     docker_file = dockerfile_template.substitute(
         requirements_docker=requirements_docker,
         target_code=target_code,
-        additional_files_local=additional_files_local,
+        additional_files_path=additional_files_path or target_code,
     )
 
     logging.info('Create Dockerfile')
@@ -150,72 +142,51 @@ def create_operator(file_path: str,
         pass
 
     def get_component_interface(parameters):
-        template_string = str()
-        for parameter_name, parameter_options in parameters.items():
-            template_string += f'- {{name: {parameter_name}, type: {parameter_options["type"]}, description: "{parameter_options["description"]}"'
-            if parameter_options['default'] is not None:
-                template_string += f', default: {parameter_options["default"]}'
-            template_string += '}\n'
-        return template_string
+        return_string = str()
+        for name, options in parameters.items():
+            return_string += f'- {{name: {name}, type: {options["type"]}, description: "{options["description"]}"'
+            if options['default'] is not None:
+                if not options["default"].startswith("'"):
+                    options["default"] = f"'{options['default']}'"
+                return_string += f', default: {options["default"]}'
+            return_string += '}\n'
+        return return_string
+    inputs_list = get_component_interface(inputs)
+    outputs_list = get_component_interface(outputs)
 
-    def get_output_name():
-        for output_key, output_value in outputs.items():
-            return output_key
+    parameter_list = str()
+    for index, key in enumerate(list(inputs.keys()) + list(outputs.keys())):
+        parameter_list += f'{key}="${{{index}}}" '
 
-    # TODO: Review implementation
-    def get_input_for_implementation():
-        t = Template("        - {inputValue: $name}")
-        with StringIO() as inputs_str:
-            for input_key, input_value in inputs.items():
-                print(t.substitute(name=input_key), file=inputs_str)
-            return inputs_str.getvalue()
-
-    def get_parameter_list():
-        return_value = str()
-        index = 0
-        for output_key, output_value in outputs.items():
-            return_value = return_value + output_key + '="${' + str(index) + '}" '
-            index = index + 1
-        for input_key, input_value in inputs.items():
-            return_value = return_value + input_key + '="${' + str(index) + '}" '
-            index = index + 1
-        return return_value
+    parameter_values = str()
+    for input_key in inputs.keys():
+        parameter_values += f"        - {{inputValue: {input_key}}}\n"
+    for input_key in outputs.keys():
+        parameter_values += f"        - {{outputPath: {input_key}}}\n"
 
     yaml = kfp_component_template.substitute(
         name=name,
         description=description,
         repository=repository,
         version=version,
-        inputs=get_component_interface(inputs),
-        outputs=get_component_interface(outputs),
-        call=f'./{target_code} {get_parameter_list()}',
-        input_for_implementation=get_input_for_implementation(),
+        inputs=inputs_list,
+        outputs=outputs_list,
+        call=f'./{target_code} {parameter_list}',
+        parameter_values=parameter_values,
     )
 
-    logging.debug('KubeFlow component yaml:')
-    logging.debug(yaml)
+    logging.debug('KubeFlow component yaml:\n' + yaml)
     target_yaml_path = file_path.replace('.ipynb', '.yaml').replace('.py', '.yaml')
 
-    logging.debug(f' Write KubeFlow component yaml to {target_yaml_path}')
+    logging.info(f'Write KubeFlow component yaml to {target_yaml_path}')
     with open(target_yaml_path, "w") as text_file:
         text_file.write(yaml)
 
     # get environment entries
-    # TODO: Make it similar to the kfp code
-    env_entries = []
-    for input_key, _ in inputs.items():
-        env_entry = f"        - name: {input_key}\n          value: value_of_{input_key}"
-        env_entries.append(env_entry)
-        env_entries.append('\n')
-    for output_key, _ in outputs.items():
-        env_entry = f"        - name: {output_key}\n          value: value_of_{output_key}"
-        env_entries.append(env_entry)
-        env_entries.append('\n')
-
-    # TODO: Is it possible that a component has no inputs?
-    if len(env_entries) != 0:
-        env_entries.pop(-1)
-    env_entries = ''.join(env_entries)
+    env_entries = str()
+    for key in list(inputs.keys()) + list(outputs.keys()):
+        env_entries += f"        - name: {key}\n          value: value_of_{key}\n"
+    env_entries = env_entries.rstrip()
 
     job_yaml = kubernetes_job_template.substitute(
         name=name,
@@ -225,8 +196,7 @@ def create_operator(file_path: str,
         env_entries=env_entries,
     )
 
-    logging.debug('Kubernetes job yaml:')
-    logging.debug(job_yaml)
+    logging.debug('Kubernetes job yaml:\n' + job_yaml)
     target_job_yaml_path = file_path.replace('.ipynb', '.job.yaml').replace('.py', '.job.yaml')
 
     logging.info(f'Write kubernetes job yaml to {target_job_yaml_path}')

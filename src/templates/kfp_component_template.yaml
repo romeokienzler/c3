@@ -15,4 +15,4 @@ implementation:
         - -ec
         - |
           python ${call}
-${input_for_implementation}
+${parameter_values}

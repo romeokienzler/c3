@@ -4,7 +4,7 @@ RUN dnf install -y java-11-openjdk
 USER default
 ${requirements_docker}
 ADD ${target_code} /opt/app-root/src/
-ADD ${additional_files_local} /opt/app-root/src/
+ADD ${additional_files_path} /opt/app-root/src/
 USER root
 RUN chmod -R 777 /opt/app-root/src/
 USER default
