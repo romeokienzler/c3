@@ -73,20 +73,18 @@ def create_operator(file_path: str,
     logging.info('Outputs: ' + str(outputs))
     logging.info('Requirements: ' + str(requirements))
 
-    if additional_files is not None:
-        additional_files_path = 'additional_files_path'
-        while os.path.exists(additional_files_path):
-            # ensures using a new directory
-            additional_files_path += '_temp'
-        logging.debug(f'Create dir for additional files {additional_files_path}')
-        os.makedirs(additional_files_path)
-        # Strip [] from backward compatibility
-        additional_files = additional_files.strip('[]').split(',')
-        for additional_file in additional_files:
-            shutil.copy(additional_file.strip(), additional_files_path)
-        logging.info(f'Selected additional files: {os.listdir(additional_files_path)}')
-    else:
-        additional_files_path = None
+    # copy all additional files to temporary folder
+    additional_files_path = 'additional_files_path'
+    while os.path.exists(additional_files_path):
+        # ensures using a new directory
+        additional_files_path += '_temp'
+    logging.debug(f'Create dir for additional files {additional_files_path}')
+    os.makedirs(additional_files_path)
+    for additional_file in additional_files:
+        assert os.path.isfile(additional_file), \
+            f"Could not find file at {additional_file}. Please provide only files as additional parameters."
+        shutil.copy(additional_file, additional_files_path)
+    logging.info(f'Selected additional files: {os.listdir(additional_files_path)}')
 
     requirements_docker = list(map(lambda s: 'RUN ' + s, requirements))
     requirements_docker = '\n'.join(requirements_docker)
@@ -94,7 +92,7 @@ def create_operator(file_path: str,
     docker_file = dockerfile_template.substitute(
         requirements_docker=requirements_docker,
         target_code=target_code,
-        additional_files_path=additional_files_path or target_code,
+        additional_files_path=additional_files_path,
     )
 
     logging.info('Create Dockerfile')
@@ -214,14 +212,14 @@ def create_operator(file_path: str,
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--file_path', type=str, required=True,
+    parser.add_argument('FILE_PATH', type=str,
                         help='Path to python script or notebook')
+    parser.add_argument('ADDITIONAL_FILES', type=str, nargs='*',
+                        help='Paths to additional files to include in the container image')
     parser.add_argument('-r', '--repository', type=str, required=True,
                         help='Container registry address, e.g. docker.io/<your_username>')
     parser.add_argument('-v', '--version', type=str, default=None,
                         help='Image version. Increases the version numer of image:latest if not provided.')
-    parser.add_argument('-a', '--additional_files', type=str,
-                        help='Comma-separated list of paths to additional files to include in the container image')
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
@@ -243,10 +241,10 @@ if __name__ == '__main__':
             dockerfile_template = Template(f.read())
 
     create_operator(
-        file_path=args.file_path,
+        file_path=args.FILE_PATH,
         repository=args.repository,
         version=args.version,
         dockerfile_template=dockerfile_template,
-        additional_files=args.additional_files,
+        additional_files=args.ADDITIONAL_FILES,
         log_level=args.log_level,
     )

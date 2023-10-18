@@ -360,11 +360,16 @@ docker login -u <user> -p <pw> <registry>/<namespace>
 With a running Docker engine and your operator script matching the C3 requirements, you can execute the C3 compiler by running `create_operator.py`:
 
 ```sh
-python <path/to/c3>/src/c3/create_operator.py --file_path "<my-operator-script>.py" --version "X.X" --repository "<repository>/<namespace>" --additional_files "[file1,file2]"     
+python <path/to/c3>/src/c3/create_operator.py "<my-operator-script>.py" "<additional_file1>" "<additional_file2>" --repository "<registry>/<namespace>"      
 ```
 
-The `file_path` can point to a python script or an ipython notebook. It is recommended to increase the `version` with every compilation as clusters pull images of a specific version from the cache if you used the image before.
-`additional_files` is an optional parameter and must include all files your using in your operator script. The additional files are placed within the same directory as the operator script. 
+The first positional argument is the path to the python script or the ipython notebook. Optional, you can provide additional files that are copied to the container images with in all following parameters. The additional files are placed within the same directory as the operator script.
+C3 automatically increases the version of the container image (default: "0.1") but you can set the version with `--version` or `-v`. You need to provide the repository with `--repository` or `-r`.
+
+View all arguments by running:
+```sh
+python <path/to/c3>/src/c3/create_grid_wrapper.py --help     
+```
 
 C3 generates the container image that is pushed to the registry, a `<my-operator-script>.yaml` file for KubeFlow, and a `<my-operator-script>.job.yaml` that can be directly used as described above. 
 
@@ -404,14 +409,14 @@ if __name__ == '__main__':
 
 ### 5.2 Compile a grid wrapper with C3
 
-The compilation is similar to an operator. Additionally, the name of the grid process is passed to `create_grid_wrapper.py`.    
+The compilation is similar to an operator. Additionally, the name of the grid process is passed to `create_grid_wrapper.py` using `--process` or `-p`.    
 
 ```sh
-python <path/to/c3>/src/c3/create_grid_wrapper.py --file_path "<my-operator-script>.py" --process "grid_process" -v "X.X" -r "<repository>/<namespace>" -a "[file1,file2]"     
+python <path/to/c3>/src/c3/create_grid_wrapper.py "<my-operator-script>.py" "<additional_file1>" "<additional_file2>" --process "grid_process" -r "<registry>/<namespace>"     
 ```
 
-C3 also includes a grid computing pattern for Cloud Object Storage (COS). You can create a COS grid wrapper by adding a `-cos` flag. 
-The COS grid wrapper downloads all files of a batch to local storage, compute the process, and uploads the target files to COS. 
+C3 also includes a grid computing pattern for Cloud Object Storage (COS). You can create a COS grid wrapper by adding a `--cos` flag. 
+The COS grid wrapper downloads all files of a batch to local storage, compute the process, and uploads the target files to COS.
 
 The created files include a `gw_<my-operator-script>.py` file that includes the generated code for the grid wrapper (`cgw_<my-operator-script>.py` for the COS version). 
 Similar to an operator, `gw_<my-operator-script>.yaml` and `gw_<my-operator-script>.job.yaml` are created.

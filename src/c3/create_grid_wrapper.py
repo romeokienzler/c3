@@ -135,18 +135,18 @@ def apply_grid_wrapper(file_path, component_process, cos, *args, **kwargs):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--file_path', type=str, required=True,
+    parser.add_argument('file_path', type=str,
                         help='Path to python script or notebook')
+    parser.add_argument('additional_files', type=str, nargs='*',
+                        help='List of paths to additional files to include in the container image')
     parser.add_argument('-p', '--component_process', type=str, required=True,
                         help='Name of the component sub process that is executed for each batch.')
-    parser.add_argument('-cos', action=argparse.BooleanOptionalAction, default=False,
+    parser.add_argument('--cos', action=argparse.BooleanOptionalAction, default=False,
                         help='Creates a grid wrapper for processing COS files')
     parser.add_argument('-r', '--repository', type=str, default=None,
                         help='Container registry address, e.g. docker.io/<your_username>')
     parser.add_argument('-v', '--version', type=str, default=None,
                         help='Image version')
-    parser.add_argument('-a', '--additional_files', type=str,
-                        help='Comma-separated list of paths to additional files to include in the container image')
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
@@ -168,13 +168,7 @@ if __name__ == '__main__':
         logging.info('Generate CLAIMED operator for grid wrapper')
 
         # Add component path and init file path to additional_files
-        if args.additional_files is None:
-            args.additional_files = component_path
-        else:
-            if args.additional_files.startswith('['):
-                args.additional_files = f'{args.additional_files[:-1]},{component_path}]'
-            else:
-                args.additional_files = f'[{args.additional_files},{component_path}]'
+        args.additional_files.append(component_path)
 
         # Update dockerfile template if specified
         if args.dockerfile_template_path != '':
