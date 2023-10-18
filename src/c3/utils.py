@@ -83,7 +83,7 @@ def get_image_version(repository, name):
 
     if len(image_tags) == 0:
         # default version
-        version = '0.1.1'
+        version = '0.1'
         logging.info(f'Using default version {version}. No prior image tag found for {repository}/claimed-{name}.')
 
     elif not check_only_numbers(image_tags[0]):
