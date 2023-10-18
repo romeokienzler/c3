@@ -274,7 +274,7 @@ Your operator script has to follow certain requirements to be processed by C3. C
 - The operator name is the python file: `my_operator_name.py` -> `claimed-my-operator-name`
 - The operator description is the first doc string in the script: `"""Operator description"""`
 - The required pip packages are listed in comments starting with pip install: `# pip install <package1> <package2>`
-- The interface is defined by environment variables `my_parameter = os.getenv('my_parameter')`. Output variables start with `output_<name>`.
+- The interface is defined by environment variables `my_parameter = os.getenv('my_parameter')`. Output paths start with `output_<path>`. Note that operators cannot return values but always have to save outputs in files.
 - You can cast a specific type by wrapping `os.getenv()` with `int()`, `float()`, `bool()`. The default type is string. Only these four types are currently supported. You can use `None` as a default value but not pass the `NoneType` via the `job.yaml`.
 
 #### iPython notebooks
@@ -308,11 +308,8 @@ input_path = os.getenv('input_path')
 # You can cast a specific type with int(), float(), or bool().
 num_values = int(os.getenv('num_values', 5))
 
-# Output parameters are starting with "output_"
+# Output paths are starting with "output_". 
 output_path = os.getenv('output_path', None)
-
-# Output parameters are used for pipelines and are not configurable in single jobs. Use "target_" instead.
-target_path = os.getenv('target_path', None)
 
 
 def my_function(n_random):
