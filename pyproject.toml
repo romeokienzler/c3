@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claimed-c3"
+version = "0.2.4"
+authors = [
+  { name="The CLAIMED authors" },
+]
+maintainers = [
+  { name="Romeo Kienzler", email="romeo.kienzler1@ibm.com" },
+  { name="Benedikt Blumenstiel", email="benedikt.blumenstiel@ibm.com" },
+]
+description = "The CLAIMED component compiler (C3) generates container images, KFP components, and Kubernetes jobs."
+readme = "README.md"
+requires-python = ">=3.7"
+license = {file = "LICENSE.txt"}
+keywords = ["CLAIMED", "compiler", "KubeFlow", "Kubernetes"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/claimed-framework/c3"
+"Bug Tracker" = "https://github.com/claimed-framework/c3/issues"
+
+[project.scripts]
+create_operator = "c3.create_operator:main"
+create_gridwrapper = "c3.create_gridwrapper:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"c3.templates" = ["*"]

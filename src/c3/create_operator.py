@@ -1,18 +1,14 @@
+
 import os
 import sys
-import re
 import logging
 import shutil
 import argparse
 import subprocess
 from string import Template
-from io import StringIO
-from pythonscript import Pythonscript
-from utils import convert_notebook, get_image_version
-
-# Update sys path to load templates
-sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-from templates import component_setup_code, dockerfile_template, kfp_component_template, kubernetes_job_template
+from c3.pythonscript import Pythonscript
+from c3.utils import convert_notebook, get_image_version
+from c3.templates import component_setup_code, dockerfile_template, kfp_component_template, kubernetes_job_template
 
 CLAIMED_VERSION = 'V0.1'
 
@@ -210,7 +206,7 @@ def create_operator(file_path: str,
         shutil.rmtree(additional_files_path, ignore_errors=True)
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('FILE_PATH', type=str,
                         help='Path to python script or notebook')
@@ -238,13 +234,19 @@ if __name__ == '__main__':
     if args.dockerfile_template_path != '':
         logging.info(f'Uses custom dockerfile template from {args.dockerfile_template_path}')
         with open(args.dockerfile_template_path, 'r') as f:
-            dockerfile_template = Template(f.read())
+            _dockerfile_template = Template(f.read())
+    else:
+        _dockerfile_template = dockerfile_template
 
     create_operator(
         file_path=args.FILE_PATH,
         repository=args.repository,
         version=args.version,
-        dockerfile_template=dockerfile_template,
+        dockerfile_template=_dockerfile_template,
         additional_files=args.ADDITIONAL_FILES,
         log_level=args.log_level,
     )
+
+
+if __name__ == '__main__':
+    main()

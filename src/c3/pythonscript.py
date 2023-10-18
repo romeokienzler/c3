@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import re
-from parser import ContentParser
+from c3.parser import ContentParser
 
 
 class Pythonscript:

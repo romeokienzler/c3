@@ -1,12 +1,13 @@
+
 import logging
 import os
 import argparse
 import sys
 from string import Template
-from pythonscript import Pythonscript
-from utils import convert_notebook
-from create_operator import create_operator
-from templates import grid_wrapper_template, cos_grid_wrapper_template, gw_component_setup_code, dockerfile_template
+from c3.pythonscript import Pythonscript
+from c3.utils import convert_notebook
+from c3.create_operator import create_operator
+from c3.templates import grid_wrapper_template, cos_grid_wrapper_template, gw_component_setup_code, dockerfile_template
 
 
 def wrap_component(component_path,
@@ -133,7 +134,7 @@ def apply_grid_wrapper(file_path, component_process, cos, *args, **kwargs):
     return grid_wrapper_file_path, file_path
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('file_path', type=str,
                         help='Path to python script or notebook')
@@ -187,3 +188,7 @@ if __name__ == '__main__':
 
         logging.info('Remove local component file')
         os.remove(component_path)
+
+
+if __name__ == '__main__':
+    main()
