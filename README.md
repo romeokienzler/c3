@@ -33,7 +33,7 @@ pip install claimed-c3
 
 Just run the following command with your python script or notebook: 
 ```sh
-create_operator --repository "<registry>/<namespace>" "<your-operator-script>.py"
+c3.create_operator --repository "<registry>/<namespace>" "<your-operator-script>.py"
 ```
 
 Your code needs to follow certain requirements which are explained in [Getting Started](https://github.com/claimed-framework/c3/blob/main/GettingStarted.md). 
@@ -42,7 +42,7 @@ Your code needs to follow certain requirements which are explained in [Getting S
 ## Getting Help
 
 ```sh
-create_operator --help
+c3.create_operator --help
 ```
 
 We welcome your questions, ideas, and feedback. Please create an [issue](https://github.com/claimed-framework/component-library/issues) or a [discussion thread](https://github.com/claimed-framework/component-library/discussions).

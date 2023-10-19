@@ -41,7 +41,7 @@ if __name__ == '__main__':
 
 
 # TODO: Add a grid process if you want to parallelize your code.
-def grid_process(batch, input_path, with_default, num_values, output_path):
+def grid_process(batch_id, input_path, with_default, num_values, output_path):
     """
     A process for the c3 grid wrapper. The process gets the batch name as the first positional argument,
     followed by all interface variables. This is only possible if the code can be processed in parallel,
@@ -49,8 +49,8 @@ def grid_process(batch, input_path, with_default, num_values, output_path):
     """
 
     # You might need to update the variables based on the batch
-    input_path += batch + '*.json'
-    output_path += batch + 'data.csv'
+    input_path += batch_id + '*.json'
+    output_path += batch_id + '_data.csv'
 
     # Execute the processing with adjusted variables
     main(num_values, input_path, output_path)

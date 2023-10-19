@@ -1,10 +1,12 @@
 import os
 import logging
 import json
+import re
 import subprocess
 
 
 def convert_notebook(path):
+    # TODO: switch to nbconvert long-term (need to replace pip install)
     with open(path) as json_file:
         notebook = json.load(json_file)
 
@@ -19,13 +21,17 @@ def convert_notebook(path):
         if cell['cell_type'] == 'markdown':
             # add markdown as doc string
             code_lines.extend(['"""\n'] + [f'{line}' for line in cell['source']] + ['\n"""'])
+        elif cell['cell_type'] == 'code' and cell['source'][0].startswith('%%bash'):
+            code_lines.append('os.system("""')
+            code_lines.extend(cell['source'][1:])
+            code_lines.append('""")')
         elif cell['cell_type'] == 'code':
             for line in cell['source']:
                 if line.strip().startswith('!'):
                     # convert sh scripts
-                    if line.strip().startswith('!pip'):
+                    if re.search('![ ]*pip', line):
                         # change pip install to comment
-                        code_lines.append(line.replace('!pip', '# pip', 1))
+                        code_lines.append(re.sub('![ ]*pip', '# pip', line))
                     else:
                         # change sh command to os.system()
                         logging.info(f'Replace shell command with os.system() ({line})')

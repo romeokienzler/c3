@@ -26,6 +26,7 @@ def create_operator(file_path: str,
     logging.info('version: ' + str(version))
     logging.info('additional_files: ' + str(additional_files))
 
+    # TODO: add argument for running ipython instead of python within the container
     if file_path.endswith('.ipynb'):
         logging.info('Convert notebook to python script')
         target_code = convert_notebook(file_path)

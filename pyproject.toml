@@ -6,11 +6,11 @@ build-backend = "setuptools.build_meta"
 name = "claimed-c3"
 version = "0.2.1"
 authors = [
-  { name="The CLAIMED authors" },
+  { name="The CLAIMED authors", email="claimed-framework@proton.me"},
 ]
 maintainers = [
-  { name="Romeo Kienzler", email="romeo.kienzler1@ibm.com" },
-  { name="Benedikt Blumenstiel", email="benedikt.blumenstiel@ibm.com" },
+  { name="Romeo Kienzler", email="claimed-framework@proton.me"},
+  { name="Benedikt Blumenstiel"},
 ]
 description = "The CLAIMED component compiler (C3) generates container images, KFP components, and Kubernetes jobs."
 readme = "README.md"
@@ -28,8 +28,8 @@ classifiers = [
 "Bug Tracker" = "https://github.com/claimed-framework/c3/issues"
 
 [project.scripts]
-create_operator = "c3.create_operator:main"
-create_gridwrapper = "c3.create_gridwrapper:main"
+c3.create_operator = "c3.create_operator:main"
+c3.create_gridwrapper = "c3.create_gridwrapper:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

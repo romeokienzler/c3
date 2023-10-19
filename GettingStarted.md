@@ -144,7 +144,7 @@ spec:
 
 ### 1.2 Cluster CLI login
 
-You can start jobs via with the `kubectl` (Kubernetes) or `oc` (OpenShift) CLI. If your using Kubernetes, the login procedure includes multiple steps which are detailed in the [Kubernetes docs](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/).
+You can start jobs with the `kubectl` (Kubernetes) or `oc` (OpenShift) CLI. If your using Kubernetes, the login procedure includes multiple steps which are detailed in the [Kubernetes docs](https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/).
 
 Logging into an OpenShift cluster is easier. You can use a token which you can generate via the browser UI, or you're username. You might want to add `--insecure-skip-tls-verify` when errors occur.
 
@@ -187,9 +187,13 @@ kubectl describe pod <pod-name>
 
 ## 2. Operator library
 
-Reusable code is a key idea of CLAIMED and operator libraries make it easier to share single processing steps. Because each operator includes a docker image with specified dependencies, operators can be easily reused in different workflows. 
+Reusable code is a key idea of CLAIMED and operator libraries make it easier to share single processing steps. 
+Because each operator includes a docker image with specified dependencies, operators can be easily reused in different workflows. 
 
 Public operators are accessible from the [CLAIMED component library](https://github.com/claimed-framework/component-library/tree/main/component-library). 
+
+You can run a public operator locally by using [claimed-cli](https://github.com/claimed-framework/cli) or copy the Kubernetes job.yaml file for running the operator on a Kubernetes/OpenShift cluster. 
+You can also use the operators in workflows as explained in the next section.     
 
 ---
 
@@ -227,6 +231,8 @@ def my_pipeline(
         parameter1=parameter1,
         parameter3=parameter3,
     )
+    
+    step2.after(step1)
 
 kfp.compiler.Compiler().compile(pipeline_func=my_pipeline, package_path='my_pipeline.yaml')
 ```
@@ -234,7 +240,7 @@ kfp.compiler.Compiler().compile(pipeline_func=my_pipeline, package_path='my_pipe
 When running the script, the KFP compiler generates a `<pipeline>.yaml` file which can be uploaded to the KubeFlow UI to start the pipeline.
 Alternatively, you can run the pipeline with the SDK client, see [KubeFlow Docs](https://www.kubeflow.org/docs/components/pipelines/v1/sdk/build-pipeline/) for details.
 
-If your using an OpenShift cluster, your might want to use the tekton compiler.
+If your using an OpenShift cluster, your might want to use the Tekton compiler.
 
 ```python
 # pip install kfp-tekton
@@ -347,15 +353,16 @@ docker login -u <user> -p <pw> <registry>/<namespace>
 With a running Docker engine and your operator script matching the C3 requirements, you can execute the C3 compiler by running `create_operator.py`:
 
 ```sh
-python <path/to/c3>/src/c3/create_operator.py "<my-operator-script>.py" "<additional_file1>" "<additional_file2>" --repository "<registry>/<namespace>"      
+c3.create_operator.py "<my-operator-script>.py" "<additional_file1>" "<additional_file2>" --repository "<registry>/<namespace>"      
 ```
 
 The first positional argument is the path to the python script or the ipython notebook. Optional, you can provide additional files that are copied to the container images with in all following parameters. The additional files are placed within the same directory as the operator script.
-C3 automatically increases the version of the container image (default: "0.1") but you can set the version with `--version` or `-v`. You need to provide the repository with `--repository` or `-r`.
+C3 automatically increases the version of the container image (default: "0.1") but you can set the version with `--version` or `-v`. You need to provide the repository with `--repository` or `-r`. 
+If you don't have access to the repository, C3 still creates the docker image and the other files but the images is not pushed to the registry and cannot be used on clusters.
 
 View all arguments by running:
 ```sh
-python <path/to/c3>/src/c3/create_grid_wrapper.py --help     
+c3.create_operator --help     
 ```
 
 C3 generates the container image that is pushed to the registry, a `<my-operator-script>.yaml` file for KubeFlow, and a `<my-operator-script>.job.yaml` that can be directly used as described above. 
@@ -372,22 +379,22 @@ Therefore, the code gets wrapped by a coordinator script: The grid wrapper.
 
 You can use the same code for the grid wrapper as for an operator by adding an extra functon which is passed to C3. 
 The grid wrapper executes this function in each batch and passes specific parameters to the function: 
-The first parameter is the batch name, followed by all variables defined in the operator interface. 
-You need to adapt the variables based on the batch, e.g., by adding the batch name to input and output paths.
+The first parameter is the batch id, followed by all variables defined in the operator interface. 
+You need to adapt the variables based on the batch, e.g., by adding the batch id to input and output paths.
 
 ```python
-def grid_process(batch, parameter1, parameter2, *args, **kwargs):
-    # update operator parameters based on batch name
-    parameter1 = parameter1 + batch
-    parameter2 = os.path.join(parameter2, batch)
+def grid_process(batch_id, parameter1, parameter2, *args, **kwargs):
+    # update operator parameters based on batch id
+    parameter1 = parameter1 + batch_id
+    parameter2 = os.path.join(parameter2, batch_id)
 
     # execute operator code with adapted parameters 
     my_function(parameter1, parameter2)
 ```
 
-You might want to add `*args, **kwargs` to avoid errors, if not all interface variables are used.
+You might want to add `*args, **kwargs` to avoid errors, if not all interface variables are used in the grid process.
 Note that the operator script is imported by the grid wrapper script. Therefore, all code in the script is executed. 
-It is recommended to avoid executions in the code or to use a main block if the script is also used as a single operator.
+It is recommended to avoid executions in the code and to use a main block if the script is also used as a single operator.
 
 ```python
 if __name__ == '__main__':
@@ -399,11 +406,12 @@ if __name__ == '__main__':
 The compilation is similar to an operator. Additionally, the name of the grid process is passed to `create_grid_wrapper.py` using `--process` or `-p`.    
 
 ```sh
-python <path/to/c3>/src/c3/create_grid_wrapper.py "<my-operator-script>.py" "<additional_file1>" "<additional_file2>" --process "grid_process" -r "<registry>/<namespace>"     
+c3.create_gridwrapper "<my-operator-script>.py" "<additional_file1>" "<additional_file2>" --process "grid_process" -r "<registry>/<namespace>"     
 ```
 
 C3 also includes a grid computing pattern for Cloud Object Storage (COS). You can create a COS grid wrapper by adding a `--cos` flag. 
-The COS grid wrapper downloads all files of a batch to local storage, compute the process, and uploads the target files to COS.
+The COS grid wrapper downloads all files of a batch to local storage, compute the process, and uploads the output files to COS. 
+Note that the COS grid wrapper requires the file paths to include the batch id to be identified, see details in the next subsection. 
 
 The created files include a `gw_<my-operator-script>.py` file that includes the generated code for the grid wrapper (`cgw_<my-operator-script>.py` for the COS version). 
 Similar to an operator, `gw_<my-operator-script>.yaml` and `gw_<my-operator-script>.job.yaml` are created.
@@ -415,18 +423,19 @@ The grid wrapper uses coordinator files to split up the batch processes between 
 Therefore, each pod needs access to a shared persistent volume, see [storage](#storage).
 Alternatively, you can use the COS grid wrapper which uses a coordinator path in COS.
 
-The grid wrapper includes specific variables in the `job.yaml`, that define the batches and some coordination settings.
+The grid wrapper adds specific variables to the `job.yaml`, that define the batches and some coordination settings.
 
 First, you can define the list of batches in a file and pass `gw_batch_file` to the grid wrapper. 
-You can use either a txt file with a comma-separated list if strings or a json file with the keys being the batches.
-Alternatively, the batches can be defined by a file name pattern via `gw_file_path_pattern` and `gw_group_by`.
+You can use either a txt file with a comma-separated list of strings or a json file with the keys being the batch ids.
+Alternatively, the batch ids can be defined by a file name pattern via `gw_file_path_pattern` and `gw_group_by`.
 You can provide multiple patterns via a comma-separated list and the patterns can include wildcards like `*` or `?` to find all relevant files.
-`gw_group_by` is code that extracts the batch from a file name by merging the file name string with the code string and passing it to `eval()`.  
+`gw_group_by` is code that extracts the batch id from a file name by merging the file name string with the code string and passing it to `eval()`.  
 Assuming, we have the file names `file-from-batch-42-metadata.json` and `second_file-42-image.png`. 
 The code `gw_group_by = ".split('-')[-2]"` extracts the batch `42` from both files.
 You can also to use something like `"[-15:-10]"` or `".split('/')[-1].split('.')[0]"`.
 `gw_group_by` is ignored if you provide `gw_batch_file`. 
-Be aware that the file names need to include the batch name if you are using `gw_group_by` or the COS version (because files are downloaded based on the batch).    
+Be aware that the file names need to include the batch name if you are using `gw_group_by` or the COS version 
+(because files are downloaded based on a match with the batch id).    
 
 Second, you need to define `gw_coordinator_path` and optionally other coordinator variables. 
 The `gw_coordinator_path` is a path to a persistent and shared directory that is used by the pods to lock batches and mark them as processed.
@@ -434,6 +443,16 @@ The `gw_coordinator_path` is a path to a persistent and shared directory that is
 `gw_lock_timeout` defines the time in seconds until other pods remove the `.lock` file from batches that might be struggling (default `3600`). 
 You need to increase `gw_lock_timeout` to avoid multiple processing if batch processes run very long. 
 By default, pods skip batches with `.err` files. You can set `gw_ignore_error_files` to `True` after you fixed the error.
+
+If your using the COS grid wrapper, further variables are required. 
+You can provide a comma-separated list of additional files that should be downloaded COS using `gw_additional_source_files`.
+All batch files and additional files are download to an input directory, defined via `gw_local_input_path` (default: `input`). 
+Similar, all files in `gw_local_target_path` are uploaded to COS after the batch processing (default: `target`).
+
+Furthermore, `gw_source_access_key_id`, `gw_source_secret_access_key`, `gw_source_endpoint`, and `gw_source_bucket` define the COS bucket to the source files.
+You can specify other buckets for the coordinator and target files. 
+If the buckets are similar to the source bucket, you just need to provide `gw_target_path` and `gw_coordinator_path` and remove the other variables from the `job.yaml`.  
+It is recommended to use [secrets](#secrets) for the access key and secret.
 
 Lastly, you want to add the number of parallel pods by adding `parallelism : <num pods>` to the `job.yaml`.
 
@@ -451,6 +470,7 @@ process_parallel_instances = 10
 def preprocessing_val_pipeline(...):    
     step1 = first_op()
     step3 = following_op()
+    
     for i in range(process_parallel_instances):
         step2 = grid_wrapper_op(...)
 
@@ -458,20 +478,9 @@ def preprocessing_val_pipeline(...):
         step3.after(step2)
 ```
 
-If your using the COS grid wrapper, further variables are required. 
-You can provide a comma-separated list of additional files that should be downloaded COS using `gw_additional_source_files`.
-All batch files and additional files are download to an input directory, defined via `gw_local_input_path` (default: `input`). 
-Similar, all files in `gw_local_target_path` are uploaded to COS after the batch processing (default: `target`).
-
-Furthermore, `gw_source_access_key_id`, `gw_source_secret_access_key`, `gw_source_endpoint`, and `gw_source_bucket` define the COS bucket to the source files.
-You can specify other buckets for the coordinator and target files. 
-If the buckets are similar to the source bucket, you just need to provide `gw_target_path` and `gw_coordinator_path` and remove the other variables from the `job.yaml`.  
-It is recommended to use [secrets](#secrets) for the access key and secret.
-
-
 #### Local example
 
-The local grid wrapper requires a local storage for coordination like the pvc in the following example.
+The local grid wrapper requires a local storage for coordination like the PVC in the following example.
 
 ```yaml
 apiVersion: batch/v1
