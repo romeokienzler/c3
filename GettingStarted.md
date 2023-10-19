@@ -250,20 +250,10 @@ TektonCompiler().compile(pipeline_func=my_pipeline, package_path='my_pipeline.ya
 
 ### 4.1 Download C3
 
-Download the [C3 repository](https://github.com/claimed-framework/c3) and install the dependencies with:
-
+You can install C3 via pip:
 ```sh
-git clone claimed-framework/c3
-cd c3
-pip install -e src
+pip install claimed-c3
 ```
-
-This documentation describes the functionality of the `dev` branch, which currently differs significantly from the `main` branch. Run the following to pull the dev branch:
-```sh
-git checkout dev
-git pull
-```
-
 
 ### 4.2 C3 requirements
 
