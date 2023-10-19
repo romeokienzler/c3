@@ -1,0 +1,11 @@
+FROM registry.access.redhat.com/ubi8/python-39
+USER root
+RUN dnf install -y java-11-openjdk
+USER default
+${requirements_docker}
+ADD ${target_code} /opt/app-root/src/
+ADD ${additional_files_path} /opt/app-root/src/
+USER root
+RUN chmod -R 777 /opt/app-root/src/
+USER default
+CMD ["python", "/opt/app-root/src/${target_code}"]

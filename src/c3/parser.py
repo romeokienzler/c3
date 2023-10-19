@@ -15,10 +15,11 @@
 #
 
 import os
-import nbformat
 import re
 
-from traitlets.config import LoggingConfigurable
+# TODO: Do we need LoggingConfigurable
+# from traitlets.config import LoggingConfigurable
+LoggingConfigurable = object
 
 from typing import TypeVar, List, Dict
 
@@ -63,13 +64,14 @@ class FileReader(LoggingConfigurable):
 class NotebookReader(FileReader):
     def __init__(self, filepath: str):
         super().__init__(filepath)
+        import nbformat
 
         with open(self._filepath) as f:
             self._notebook = nbformat.read(f, as_version=4)
             self._language = None
 
             try:
-                self._language = self._notebook['metadata']['kernelspec']['language'].lower()
+                self._language = self._notebook['metadata']['language_info']['name'].lower()
 
             except KeyError:
                 self.log.warning(f'No language metadata found in {self._filepath}')

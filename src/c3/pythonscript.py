@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import re
-from parser import ContentParser
+from c3.parser import ContentParser
 
 
 class Pythonscript:
@@ -13,7 +13,7 @@ class Pythonscript:
             self.script = f.read()
 
         self.name = os.path.basename(path)[:-3].replace('_', '-')
-        assert '"""' in self.script, 'Please provide a description of the operator inside the first doc string.'
+        assert '"""' in self.script, 'Please provide a description of the operator in the first doc string.'
         self.description = self.script.split('"""')[1].strip()
         self.envs = self._get_env_vars()
 
@@ -31,11 +31,6 @@ class Pythonscript:
                         comment_line = ''
                     if comment_line == '':
                         logging.info(f'Interface: No description for variable {env_name} provided.')
-                    if ',' in comment_line:
-                        logging.info(
-                            f"Interface: comment line for variable {env_name} contains commas which will be deleted.")
-                        comment_line = comment_line.replace(',', '')
-
                     if "int(" in line:
                         type = 'Integer'
                     elif "float(" in line:
@@ -45,11 +40,11 @@ class Pythonscript:
                     else:
                         type = 'String'
                     if ',' in line:
-                        default = line.split(',')[1].split(')')[0]
+                        default = line.split(',', 1)[1].rstrip(') ').strip().replace("\"", "\'")
                     else:
                         default = None
                     return_value[env_name] = {
-                        'description': comment_line.replace('#', '').strip(),
+                        'description': comment_line.replace('#', '').replace("\"", "\'").strip(),
                         'type': type,
                         'default': default
                     }
