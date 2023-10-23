@@ -1,10 +1,11 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
 
 [project]
 name = "claimed-c3"
-version = "0.2.1"
 authors = [
   { name="The CLAIMED authors", email="claimed-framework@proton.me"},
 ]

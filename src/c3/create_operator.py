@@ -6,6 +6,7 @@ import shutil
 import argparse
 import subprocess
 from string import Template
+from importlib.metadata import version
 from c3.pythonscript import Pythonscript
 from c3.utils import convert_notebook, get_image_version
 from c3.templates import component_setup_code, dockerfile_template, kfp_component_template, kubernetes_job_template
@@ -218,9 +219,14 @@ def main():
     parser.add_argument('-v', '--version', type=str, default=None,
                         help='Image version. Increases the version numer of image:latest if not provided.')
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
+    parser.add_argument("-v", "--version", action="store_true")
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
     args = parser.parse_args()
+
+    if args.version:
+        print(version("claimed-c3"))
+        sys.exit()
 
     # Init logging
     root = logging.getLogger()
