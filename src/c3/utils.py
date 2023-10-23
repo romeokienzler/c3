@@ -67,21 +67,66 @@ def increase_image_version(last_version):
     return version
 
 
+def pull_docker_image_tags(image):
+    logging.warning("The current implementation can only query local docker images. "
+                    "Please use an argument '-v <version>' to avoid duplicates.")
+    # list images
+    output = subprocess.run(
+        ['docker', 'image', 'ls', image],
+        stdout=subprocess.PIPE
+    ).stdout.decode('utf-8')
+    try:
+        # remove header
+        image_list = output.splitlines()[1:]
+        # get list of image tags
+        image_tags = [line.split()[1] for line in image_list]
+    except:
+        image_tags = []
+        logging.error(f"Could not load image tags from 'docker image ls' output: {output}")
+        pass
+
+    # filter latest and none
+    image_tags = [t for t in image_tags if t not in ['latest', '<none>']]
+    return image_tags
+
+
+def pull_icr_image_tags(image):
+    # list images from icr
+    output = subprocess.run(
+        ['ibmcloud', 'cr', 'images', '--restrict', image.split('icr.io/', 1)[1]],
+        stdout=subprocess.PIPE
+    ).stdout.decode('utf-8')
+
+    try:
+        # remove header and final status
+        image_list = output.splitlines()[3:-2]
+        # get list of image tags
+        image_tags = [line.split()[1] for line in image_list]
+    except:
+        image_tags = []
+        logging.error(f"Could not load image tags from 'ibmcloud cr images' output: {output}")
+        pass
+
+    # filter latest and none
+    image_tags = [t for t in image_tags if t not in ['latest', '<none>']]
+    return image_tags
+
+
 def get_image_version(repository, name):
     """
     Get current version of the image from the registry and increase the version by 1.
-    Default to 0.1.1 if no image is found in the registry.
+    Defaults to 0.1 if no image is found in the registry.
     """
     logging.debug(f'Get image version from registry.')
-    # list images
-    image_list = subprocess.run(
-        ['docker', 'image', 'ls', f'{repository}/claimed-{name}'],
-        stdout=subprocess.PIPE
-    ).stdout.decode('utf-8')
-    # get list of image tags
-    image_tags = [line.split()[1] for line in image_list.splitlines()][1:]
-    # filter latest and none
-    image_tags = [t for t in image_tags if t not in ['latest', '<none>']]
+    if 'docker.io' in repository:
+        logging.debug('Get image tags from docker.')
+        image_tags = pull_docker_image_tags(f'{repository}/claimed-{name}')
+    elif 'icr.io' in repository:
+        logging.debug('Get image tags from ibmcloud container registry.')
+        image_tags = pull_icr_image_tags(f'{repository}/claimed-{name}')
+    else:
+        logging.warning('Unrecognised container registry, using docker to query image tags.')
+        image_tags = pull_docker_image_tags(f'{repository}/claimed-{name}')
     logging.debug(f'Image tags: {image_tags}')
 
     def check_only_numbers(test_str):

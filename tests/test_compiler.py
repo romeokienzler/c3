@@ -52,6 +52,26 @@ def test_convert_notebook(
     os.remove(script_path)
 
 
+test_get_remote_version_input = [
+    ('us.icr.io/geodn', 'sleep',),
+    ('docker.io/romeokienzler', 'predict-image-endpoint',),
+]
+
+
+@pytest.mark.parametrize(
+    "repository, name",
+    test_get_remote_version_input,
+)
+def test_get_remote_version(
+        repository: str,
+        name: str,
+):
+    # testing icr.io requires 'ibmcloud login'
+    version = get_image_version(repository, name)
+    assert version != '0.1', \
+        f"get_image_version retruns default version 0.1"
+
+
 test_increase_version_input = [
     ('0.1', '0.2'),
     ('2.1.13', '2.1.14'),
@@ -64,7 +84,7 @@ test_increase_version_input = [
     "last_version, expected_version",
     test_increase_version_input,
 )
-def test_create_operator(
+def test_increase_version(
         last_version: str,
         expected_version: str,
 ):
