@@ -119,3 +119,40 @@ def test_create_operator(
     file = Path(file_path)
     file.with_suffix('.yaml').unlink()
     file.with_suffix('.job.yaml').unlink()
+    # TODO: Add tests for the created container image
+
+
+test_create_gridwrapper_input = [
+    (
+        TEST_NOTEBOOK_PATH,
+        DUMMY_REPO,
+        'your_function',
+        [],
+    ),
+    (
+        TEST_SCRIPT_PATH,
+        DUMMY_REPO,
+        'process',
+        [TEST_NOTEBOOK_PATH],
+    )
+]
+@pytest.mark.parametrize(
+    "file_path, repository, process, args",
+    test_create_gridwrapper_input,
+)
+def test_create_gridwrapper(
+        file_path: str,
+        repository: str,
+        process: str,
+        args: List,
+):
+    subprocess.run(['python', '../src/c3/create_gridwrapper.py', file_path, *args,
+                    '-r', repository, '-p', process], check=True)
+
+    file = Path(file_path)
+    gw_file = file.parent / f'gw_{file.stem}.py'
+
+    gw_file.with_suffix('.yaml').unlink()
+    gw_file.with_suffix('.job.yaml').unlink()
+    gw_file.unlink()
+    # TODO: Add tests for the created container image

@@ -30,10 +30,12 @@ def main(*args):
 
     print(args)
 
+
 def process(batch, *args):
     # process function for grid wrapper
     print('Execute batch:', batch)
     main(batch, *args, input_path, batch_size, debug, output_path)
+
 
 if __name__ == '__main__':
     main(input_path, batch_size, debug, output_path)
