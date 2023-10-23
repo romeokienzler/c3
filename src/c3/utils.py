@@ -63,13 +63,13 @@ def increase_image_version(last_version):
         version = last_version + '.1'
         logging.debug(f'Failed to increase last value, adding .1')
         pass
-    logging.info(f'Using version {version} based on latest tag ({last_version}).')
     return version
 
 
 def pull_docker_image_tags(image):
     logging.warning("The current implementation can only query local docker images. "
                     "Please use an argument '-v <version>' to avoid duplicates.")
+    # TODO: Add script for reading image tags from docker hub
     # list images
     output = subprocess.run(
         ['docker', 'image', 'ls', image],

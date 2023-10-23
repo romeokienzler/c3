@@ -4,7 +4,6 @@ import os
 import argparse
 import sys
 from string import Template
-from importlib.metadata import version
 from c3.pythonscript import Pythonscript
 from c3.utils import convert_notebook
 from c3.create_operator import create_operator
@@ -175,13 +174,15 @@ def main():
         if args.dockerfile_template_path != '':
             logging.info(f'Uses custom dockerfile template from {args.dockerfile_template_path}')
             with open(args.dockerfile_template_path, 'r') as f:
-                dockerfile_template = Template(f.read())
+                _dockerfile_template = Template(f.read())
+        else:
+            _dockerfile_template = dockerfile_template
 
         create_operator(
             file_path=grid_wrapper_file_path,
             repository=args.repository,
             version=args.version,
-            dockerfile_template=dockerfile_template,
+            dockerfile_template=_dockerfile_template,
             additional_files=args.additional_files,
             log_level=args.log_level,
         )

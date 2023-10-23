@@ -6,7 +6,6 @@ import shutil
 import argparse
 import subprocess
 from string import Template
-from importlib.metadata import version
 from c3.pythonscript import Pythonscript
 from c3.utils import convert_notebook, get_image_version
 from c3.templates import component_setup_code, dockerfile_template, kfp_component_template, kubernetes_job_template
