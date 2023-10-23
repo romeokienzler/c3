@@ -215,18 +215,13 @@ def main():
     parser.add_argument('ADDITIONAL_FILES', type=str, nargs='*',
                         help='Paths to additional files to include in the container image')
     parser.add_argument('-r', '--repository', type=str, required=True,
-                        help='Container registry address, e.g. docker.io/<your_username>')
+                        help='Container registry address, e.g. docker.io/<username>')
     parser.add_argument('-v', '--version', type=str, default=None,
-                        help='Image version. Increases the version numer of image:latest if not provided.')
+                        help='Container image version. Auto-increases the version number if not provided (default 0.1)')
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
-    parser.add_argument("-v", "--version", action="store_true")
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
     args = parser.parse_args()
-
-    if args.version:
-        print(version("claimed-c3"))
-        sys.exit()
 
     # Init logging
     root = logging.getLogger()
