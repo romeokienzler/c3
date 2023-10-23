@@ -3,9 +3,11 @@ requires = ["setuptools>=61.0", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
+version_file = "src/c3/_version.py"
 
 [project]
 name = "claimed-c3"
+dynamic = ["version"]
 authors = [
   { name="The CLAIMED authors", email="claimed-framework@proton.me"},
 ]
