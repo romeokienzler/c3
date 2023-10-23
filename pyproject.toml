@@ -28,8 +28,8 @@ classifiers = [
 "Bug Tracker" = "https://github.com/claimed-framework/c3/issues"
 
 [project.scripts]
-c3.create_operator = "c3.create_operator:main"
-c3.create_gridwrapper = "c3.create_gridwrapper:main"
+c3_create_operator = "c3.create_operator:main"
+c3_create_gridwrapper = "c3.create_gridwrapper:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
