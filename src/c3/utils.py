@@ -35,7 +35,7 @@ def convert_notebook(path):
                     else:
                         # change sh command to os.system()
                         logging.info(f'Replace shell command with os.system() ({line})')
-                        code_lines.append(line.replace('!', 'os.system(', 1).replace('\n', ')\n'))
+                        code_lines.append(line.replace('!', "os.system('", 1).replace('\n', "')\n"))
                 else:
                     # add code
                     code_lines.append(line)
