@@ -151,6 +151,7 @@ def main():
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
+    parser.add_argument('--test_mode', action='store_true')
     args = parser.parse_args()
 
     # Init logging
@@ -185,6 +186,7 @@ def main():
             dockerfile_template=_dockerfile_template,
             additional_files=args.additional_files,
             log_level=args.log_level,
+            test_mode=args.test_mode,
         )
 
         logging.info('Remove local component file')

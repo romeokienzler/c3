@@ -17,9 +17,7 @@
 import os
 import re
 
-# TODO: Do we need LoggingConfigurable
-# from traitlets.config import LoggingConfigurable
-LoggingConfigurable = object
+from traitlets.config import LoggingConfigurable
 
 from typing import TypeVar, List, Dict
 
@@ -125,8 +123,7 @@ class PythonScriptParser(ScriptParser):
         # Second regex matches envvar assignments that use os.getenv("name", "value") with ow w/o default provided
         # Third regex matches envvar assignments that use os.environ.get("name", "value") with or w/o default provided
         # Both name and value are captured if possible
-        envs = [r"os\.environ\[[\"']([a-zA-Z_]+[A-Za-z0-9_]*)[\"']\](?:\s*=(?:\s*[\"'](.[^\"']*)?[\"'])?)*",
-                r"os\.getenv\([\"']([a-zA-Z_]+[A-Za-z0-9_]*)[\"'](?:\s*\,\s*[\"'](.[^\"']*)?[\"'])?",
+        envs = [r"os\.getenv\([\"']([a-zA-Z_]+[A-Za-z0-9_]*)[\"'](?:\s*\,\s*[\"'](.[^\"']*)?[\"'])?",
                 r"os\.environ\.get\([\"']([a-zA-Z_]+[A-Za-z0-9_]*)[\"'](?:\s*\,(?:\s*[\"'](.[^\"']*)?[\"'])?)*"]
         regex_dict["env_vars"] = envs
         return regex_dict

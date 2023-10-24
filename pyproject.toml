@@ -25,6 +25,11 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
 ]
+dependencies = [
+    'nbconvert >= 7.9.2',
+    'ipython >= 8.16.1',
+    'traitlets >= 5.11.2',
+]
 
 [project.urls]
 "Homepage" = "https://github.com/claimed-framework/c3"

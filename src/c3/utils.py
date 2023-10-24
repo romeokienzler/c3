@@ -1,47 +1,33 @@
 import os
 import logging
-import json
+import nbformat
 import re
 import subprocess
+from nbconvert.exporters import PythonExporter
 
 
 def convert_notebook(path):
-    # TODO: switch to nbconvert long-term (need to replace pip install)
-    with open(path) as json_file:
-        notebook = json.load(json_file)
+    notebook = nbformat.read(path, as_version=4)
 
-    # backwards compatibility
+    # backwards compatibility (v0.1 description was included in second cell, merge first two markdown cells)
     if notebook['cells'][0]['cell_type'] == 'markdown' and notebook['cells'][1]['cell_type'] == 'markdown':
         logging.info('Merge first two markdown cells. File name is used as operator name, not first markdown cell.')
-        notebook['cells'][1]['source'] = notebook['cells'][0]['source'] + ['\n'] + notebook['cells'][1]['source']
+        notebook['cells'][1]['source'] = notebook['cells'][0]['source'] + '\n' + notebook['cells'][1]['source']
         notebook['cells'] = notebook['cells'][1:]
 
-    code_lines = []
     for cell in notebook['cells']:
         if cell['cell_type'] == 'markdown':
-            # add markdown as doc string
-            code_lines.extend(['"""\n'] + [f'{line}' for line in cell['source']] + ['\n"""'])
-        elif cell['cell_type'] == 'code' and cell['source'][0].startswith('%%bash'):
-            code_lines.append('os.system("""')
-            code_lines.extend(cell['source'][1:])
-            code_lines.append('""")')
-        elif cell['cell_type'] == 'code':
-            for line in cell['source']:
-                if line.strip().startswith('!'):
-                    # convert sh scripts
-                    if re.search('![ ]*pip', line):
-                        # change pip install to comment
-                        code_lines.append(re.sub('![ ]*pip', '# pip', line))
-                    else:
-                        # change sh command to os.system()
-                        logging.info(f'Replace shell command with os.system() ({line})')
-                        code_lines.append(line.replace('!', "os.system('", 1).replace('\n', "')\n"))
-                else:
-                    # add code
-                    code_lines.append(line)
-        # add line break after cell
-        code_lines.append('\n')
-    code = ''.join(code_lines)
+            # convert markdown to doc string
+            cell['cell_type'] = 'code'
+            cell['source'] = '"""\n' + cell['source'] + '\n"""'
+            cell['outputs'] = []
+            cell['execution_count'] = 0
+        if cell['cell_type'] == 'code' and re.search('![ ]*pip', cell['source']):
+            # replace !pip with #pip
+            cell['source'] = re.sub('![ ]*pip[ ]*install', '# pip install', cell['source'])
+
+    # convert tp python script
+    (code, _) = PythonExporter().from_notebook_node(notebook)
 
     py_path = path.split('/')[-1].replace('.ipynb', '.py')
 
