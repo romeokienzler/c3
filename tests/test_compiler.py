@@ -114,7 +114,8 @@ def test_create_operator(
         repository: str,
         args: List,
 ):
-    subprocess.run(['python', '../src/c3/create_operator.py', file_path, *args, '-r', repository], check=True)
+    subprocess.run(['python', '../src/c3/create_operator.py', file_path, *args, '-r', repository, '--test_mode'],
+                   check=True)
 
     file = Path(file_path)
     file.with_suffix('.yaml').unlink()
@@ -147,7 +148,7 @@ def test_create_gridwrapper(
         args: List,
 ):
     subprocess.run(['python', '../src/c3/create_gridwrapper.py', file_path, *args,
-                    '-r', repository, '-p', process], check=True)
+                    '-r', repository, '-p', process, '--test_mode'], check=True)
 
     file = Path(file_path)
     gw_file = file.parent / f'gw_{file.stem}.py'

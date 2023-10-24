@@ -19,6 +19,7 @@ def create_operator(file_path: str,
                     dockerfile_template: str,
                     additional_files: str = None,
                     log_level='INFO',
+                    test_mode=False,
                     ):
     logging.info('Parameters: ')
     logging.info('file_path: ' + file_path)
@@ -101,24 +102,20 @@ def create_operator(file_path: str,
         version = get_image_version(repository, name)
 
     logging.info(f'Building container image claimed-{name}:{version}')
-    try:
-        subprocess.run(
-            ['docker', 'build', '--platform', 'linux/amd64', '-t', f'claimed-{name}:{version}', '.'],
-            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
-        )
-        logging.debug(f'Tagging images with "latest" and "{version}"')
-        subprocess.run(
-            ['docker', 'tag', f'claimed-{name}:{version}', f'{repository}/claimed-{name}:{version}'],
-            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
-        )
-        subprocess.run(
-            ['docker', 'tag', f'claimed-{name}:{version}', f'{repository}/claimed-{name}:latest'],
-            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
-        )
-        logging.info('Successfully built image')
-    except:
-        logging.error(f'Failed to build image with docker.')
-        pass
+    subprocess.run(
+        ['docker', 'build', '--platform', 'linux/amd64', '-t', f'claimed-{name}:{version}', '.'],
+        stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
+    )
+    logging.debug(f'Tagging images with "latest" and "{version}"')
+    subprocess.run(
+        ['docker', 'tag', f'claimed-{name}:{version}', f'{repository}/claimed-{name}:{version}'],
+        stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
+    )
+    subprocess.run(
+        ['docker', 'tag', f'claimed-{name}:{version}', f'{repository}/claimed-{name}:latest'],
+        stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
+    )
+    logging.info('Successfully built image')
 
     logging.info(f'Pushing images to registry {repository}')
     try:
@@ -131,10 +128,18 @@ def create_operator(file_path: str,
             stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
         )
         logging.info('Successfully pushed image to registry')
-    except:
+    except Exception as err:
         logging.error(f'Could not push images to namespace {repository}. '
                       f'Please check if docker is logged in or select a namespace with access.')
-        pass
+        if test_mode:
+            logging.info('Continue processing (test mode).')
+            pass
+        else:
+            if file_path != target_code:
+                os.remove(target_code)
+            os.remove('Dockerfile')
+            shutil.rmtree(additional_files_path, ignore_errors=True)
+            raise err
 
     def get_component_interface(parameters):
         return_string = str()
@@ -203,8 +208,7 @@ def create_operator(file_path: str,
     if file_path != target_code:
         os.remove(target_code)
     os.remove('Dockerfile')
-    if additional_files_path is not None:
-        shutil.rmtree(additional_files_path, ignore_errors=True)
+    shutil.rmtree(additional_files_path, ignore_errors=True)
 
 
 def main():
@@ -220,6 +224,7 @@ def main():
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
+    parser.add_argument('--test_mode', action='store_true')
     args = parser.parse_args()
 
     # Init logging
@@ -246,6 +251,7 @@ def main():
         dockerfile_template=_dockerfile_template,
         additional_files=args.ADDITIONAL_FILES,
         log_level=args.log_level,
+        test_mode=args.test_mode,
     )
 
 
