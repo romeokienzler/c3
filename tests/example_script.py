@@ -10,7 +10,7 @@ import os
 import numpy as np
 
 # A comment one line above os.getenv is the description of this variable.
-input_path = os.environ.get('input_path', 'test')  # ('not this')
+input_path = os.environ.get('input_path', None  )  # ('not this')
 
 # type casting to int(), float(), or bool()
 batch_size = int(os.environ.get('batch_size', 16))  # (not this)

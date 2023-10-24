@@ -40,12 +40,12 @@ class Pythonscript:
                     else:
                         type = 'String'
                     # get default value
-                    if ',' in line and type == 'String':
-                        # extract default string value with regex and replace " with ' to avoid errors
-                        default = re.search(r",\s*(['\"].*?['\"])\)", line).group(1)[1:-1].replace("\"", "\'")
-                    elif ',' in line:
+                    if ',' in line:
                         # extract int, float, bool
-                        default = re.search(r",\s*(.*?)\)", line).group(1)
+                        default = re.search(r",\s*(.*?)\s*\)", line).group(1)
+                        if type == 'String' and default != 'None':
+                            # Process string default value
+                            default = default[1:-1].replace("\"", "\'")
                     else:
                         default = None
                     return_value[env_name] = {
