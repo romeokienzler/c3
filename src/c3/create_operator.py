@@ -141,8 +141,8 @@ def create_operator(file_path: str,
         for name, options in parameters.items():
             return_string += f'- {{name: {name}, type: {options["type"]}, description: "{options["description"]}"'
             if options['default'] is not None:
-                if not options["default"].startswith("'"):
-                    options["default"] = f"'{options['default']}'"
+                if not options["default"].startswith('"'):
+                    options["default"] = f'"{options["default"]}"'
                 return_string += f', default: {options["default"]}'
             return_string += '}\n'
         return return_string

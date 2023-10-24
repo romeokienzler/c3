@@ -10,10 +10,10 @@ import os
 import numpy as np
 
 # A comment one line above os.getenv is the description of this variable.
-input_path = os.getenv('input_path')
+input_path = os.environ.get('input_path', 'test')  # ('not this')
 
 # type casting to int(), float(), or bool()
-batch_size = int(os.getenv('batch_size', 16))
+batch_size = int(os.environ.get('batch_size', 16))  # (not this)
 
 # Commas in the previous comment are deleted because the yaml file requires descriptions without commas.
 debug = bool(os.getenv('debug', False))

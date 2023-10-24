@@ -31,16 +31,21 @@ class Pythonscript:
                         comment_line = ''
                     if comment_line == '':
                         logging.info(f'Interface: No description for variable {env_name} provided.')
-                    if "int(" in line:
+                    if re.search(r'=\s*int\(\s*os', line):
                         type = 'Integer'
-                    elif "float(" in line:
+                    elif re.search(r'=\s*float\(\s*os', line):
                         type = 'Float'
-                    elif "bool(" in line:
+                    elif re.search(r'=\s*bool\(\s*os', line):
                         type = 'Boolean'
                     else:
                         type = 'String'
-                    if ',' in line:
-                        default = line.split(',', 1)[1].rstrip(') ').strip().replace("\"", "\'")
+                    # get default value
+                    if ',' in line and type == 'String':
+                        # extract default string value with regex and replace " with ' to avoid errors
+                        default = re.search(r",\s*(['\"].*?['\"])\)", line).group(1)[1:-1].replace("\"", "\'")
+                    elif ',' in line:
+                        # extract int, float, bool
+                        default = re.search(r",\s*(.*?)\)", line).group(1)
                     else:
                         default = None
                     return_value[env_name] = {
