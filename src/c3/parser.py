@@ -17,9 +17,7 @@
 import os
 import re
 
-# TODO: Do we need LoggingConfigurable
-# from traitlets.config import LoggingConfigurable
-LoggingConfigurable = object
+from traitlets.config import LoggingConfigurable
 
 from typing import TypeVar, List, Dict
 
