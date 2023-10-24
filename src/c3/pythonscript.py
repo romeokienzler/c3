@@ -40,7 +40,7 @@ class Pythonscript:
                     else:
                         type = 'String'
                     # get default value
-                    if ',' in line:
+                    if re.search(r"\(.*,.*\)", line):
                         # extract int, float, bool
                         default = re.search(r",\s*(.*?)\s*\)", line).group(1)
                         if type == 'String' and default != 'None':
