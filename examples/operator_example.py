@@ -16,10 +16,10 @@ import numpy as np
 # A comment one line above os.getenv is the description of this variable.
 input_path = os.getenv('input_path')
 
-# Optionally, you can set a default values.
+# If you specify a default value, this parameter gets marked as optional
 with_default = os.getenv('with_default', 'default_value')
 
-# You can cast a specific type with int(), float(), or bool().
+# You can cast to a specific type with int(), float(), or bool() - this type information propagates down to the execution engines (e.g., Kubeflow)
 num_values = int(os.getenv('num_values', 5))
 
 # Output paths are starting with "output_".
