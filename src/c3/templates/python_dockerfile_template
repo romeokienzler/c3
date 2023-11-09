@@ -2,8 +2,8 @@ FROM registry.access.redhat.com/ubi8/python-39
 USER root
 RUN pip install ipython
 ${requirements_docker}
-ADD ${target_code} /opt/app-root/src/
-ADD ${additional_files_path} /opt/app-root/src/
-RUN chmod -R 777 /opt/app-root/src/
+ADD ${target_code} ${working_dir}
+ADD ${additional_files_path} ${working_dir}
+RUN chmod -R 777 ${working_dir}
 USER default
-CMD ["${command}", "/opt/app-root/src/${target_code}"]
+CMD ["${command}", "${working_dir}${target_code}"]

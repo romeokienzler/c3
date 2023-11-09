@@ -37,6 +37,7 @@ def create_operator(file_path: str,
         logging.info('Convert notebook to python script')
         target_code = convert_notebook(file_path)
         command = '/opt/app-root/bin/ipython'
+        working_dir = '/opt/app-root/src/'
     elif file_path.endswith('.py'):
         target_code = file_path.split('/')[-1]
         if file_path == target_code:
@@ -45,6 +46,7 @@ def create_operator(file_path: str,
         # Copy file to current working directory
         shutil.copy(file_path, target_code)
         command = '/opt/app-root/bin/python'
+        working_dir = '/opt/app-root/src/'
     elif file_path.lower().endswith('.r'):
         target_code = file_path.split('/')[-1]
         if file_path == target_code:
@@ -53,6 +55,7 @@ def create_operator(file_path: str,
         # Copy file to current working directory
         shutil.copy(file_path, target_code)
         command = 'Rscript'
+        working_dir = '/home/docker/'
     else:
         raise NotImplementedError('Please provide a file_path to a jupyter notebook, python script, or R script.')
 
@@ -117,7 +120,8 @@ def create_operator(file_path: str,
         requirements_docker=requirements_docker,
         target_code=target_code,
         additional_files_path=additional_files_path,
-        command=os.path.basename(command)
+        working_dir=working_dir,
+        command=os.path.basename(command),
     )
 
     logging.info('Create Dockerfile')
@@ -233,6 +237,7 @@ def create_operator(file_path: str,
         target_code=target_code,
         env_entries=env_entries,
         command=command,
+        working_dir=working_dir,
     )
 
     logging.debug('Kubernetes job yaml:\n' + job_yaml)

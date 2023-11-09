@@ -259,7 +259,7 @@ TektonCompiler().compile(pipeline_func=my_pipeline, package_path='my_pipeline.ya
 
 You can install C3 via pip:
 ```sh
-pip install claimed-c3
+pip install claimed
 ```
 
 ### 4.2 C3 requirements
