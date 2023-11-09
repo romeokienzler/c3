@@ -5,26 +5,23 @@ import re
 from c3.parser import ContentParser
 
 
-class Pythonscript:
+class Rscript:
     def __init__(self, path):
 
         self.path = path
         with open(path, 'r') as f:
             self.script = f.read()
 
-        self.name = os.path.basename(path)[:-3].replace('_', '-')
-        if '"""' not in self.script:
-            logging.warning('Please provide a description of the operator in the first doc string.')
-            self.description = self.name
-        else:
-            self.description = self.script.split('"""')[1].strip()
+        self.name = os.path.basename(path)[:-2].replace('_', '-')
+        # TODO: Currently does not support a description
+        self.description = self.name
         self.envs = self._get_env_vars()
 
     def _get_env_vars(self):
         cp = ContentParser()
         env_names = cp.parse(self.path)['env_vars']
         return_value = dict()
-        for env_name in env_names:
+        for env_name, default in env_names.items():
             comment_line = str()
             for line in self.script.split('\n'):
                 if re.search("[\"']" + env_name + "[\"']", line):
@@ -34,23 +31,13 @@ class Pythonscript:
                         comment_line = ''
                     if comment_line == '':
                         logging.info(f'Interface: No description for variable {env_name} provided.')
-                    if re.search(r'=\s*int\(\s*os', line):
-                        type = 'Integer'
-                    elif re.search(r'=\s*float\(\s*os', line):
-                        type = 'Float'
+                    if re.search(r'=\s*as.numeric\(\s*os', line):
+                        type = 'Float'  # double in R
                     elif re.search(r'=\s*bool\(\s*os', line):
-                        type = 'Boolean'
+                        type = 'Boolean'  # logical in R
                     else:
-                        type = 'String'
-                    # get default value
-                    if re.search(r"\(.*,.*\)", line):
-                        # extract int, float, bool
-                        default = re.search(r",\s*(.*?)\s*\)", line).group(1)
-                        if type == 'String' and default != 'None':
-                            # Process string default value
-                            default = default[1:-1].replace("\"", "\'")
-                    else:
-                        default = None
+                        type = 'String'  # character in R
+
                     return_value[env_name] = {
                         'description': comment_line.replace('#', '').replace("\"", "\'").strip(),
                         'type': type,
@@ -62,20 +49,22 @@ class Pythonscript:
 
     def get_requirements(self):
         requirements = []
-        # Add dnf install
+        # Add apt install commands
         for line in self.script.split('\n'):
-            if re.search(r'[\s#]*dnf\s*[A-Za-z0-9_-]*', line):
+            if re.search(r'[\s#]*apt\s*[A-Za-z0-9_-]*', line):
                 if '-y' not in line:
                     # Adding default repo
                     line += ' -y'
                 requirements.append(line.replace('#', '').strip())
 
-        # Add pip install
-        pattern = r"([ ]*pip[ ]*install[ ]*)([A-Za-z=0-9.\-: ]*)"
+        # Add Rscript install.packages commands
         for line in self.script.split('\n'):
-            result = re.findall(pattern, line)
-            if len(result) == 1:
-                requirements.append((result[0][0].strip() + ' ' + result[0][1].strip()))
+            if re.search(r'[\s#]*install\.packages\(.*\)', line):
+                if 'http://' not in line:
+                    # Adding default repo
+                    line = line.rstrip(') ') + ", repos='http://cran.us.r-project.org')"
+                command = f"Rscript -e \"{line.replace('#', '').strip()}\""
+                requirements.append(command)
         return requirements
 
     def get_name(self):

@@ -170,6 +170,7 @@ kubectl apply -f <operator>.job.yaml
 # kill job
 kubectl delete -f <operator>.job.yaml
 ```
+Note that calling `kubectl apply` two times can lead to an error because jobs have unique names. If a job with the same name is running, you might need to kill the job before restarting it.
 
 The job creates a pod which is accessible via the browser UI or via CLI using the standard kubectl commands.
 ```sh
@@ -273,12 +274,24 @@ Your operator script has to follow certain requirements to be processed by C3. C
 - The interface is defined by environment variables `my_parameter = os.getenv('my_parameter')`. Output paths start with `output_<path>`. Note that operators cannot return values but always have to save outputs in files.
 - You can cast a specific type by wrapping `os.getenv()` with `int()`, `float()`, `bool()`. The default type is string. Only these four types are currently supported. You can use `None` as a default value but not pass the `NoneType` via the `job.yaml`.
 
+You can optionally install future tools with `dnf` by adding a comment `# dnf <command>`. 
+
 #### iPython notebooks
 
 - The operator name is the notebook file: `my_operator_name.ipynb` -> `claimed-my-operator-name`
-- The notebook is converted to a python script before creating the operator by merging all cells. 
-- Markdown cells are converted into doc strings. shell commands with `!...` are converted into `os.system()`.
+- The notebook is converted by `nbconvert` to a python script before creating the operator by merging all cells. 
+- Markdown cells are converted into doc strings. shell commands with `!...` are converted into `get_ipython().run_line_magic()`.
 - The requirements of python scripts apply to the notebook code (The operator description can be a markdown cell).
+
+#### R scripts
+
+- The operator name is the python file: `my_operator_name.R` -> `claimed-my-operator-name`
+- The operator description is currently fixed to `"R script"`.
+- The required R packages are installed with: `install.packages(<packname>, repos=<optional repo>)`
+- The interface is defined by environment variables `my_parameter <- Sys.getenv('my_parameter', 'optional_default_value')`. Output paths start with `output_<path>`. Note that operators cannot return values but always have to save outputs in files.
+- You can cast a specific type by wrapping `Sys.getenv()` with `as.numeric()` or `as.logical()`. The default type is string. Only these three types are currently supported. You can use `NULL` as a default value but not pass `NULL` via the `job.yaml`.
+
+You can optionally install future tools with `apt` by adding a comment `# apt <command>`
 
 #### Example
 
@@ -362,7 +375,7 @@ If you don't have access to the repository, C3 still creates the docker image an
 
 View all arguments by running:
 ```sh
-c3_create_operator --help     
+c3_create_operator --help
 ```
 
 C3 generates the container image that is pushed to the registry, a `<my-operator-script>.yaml` file for KubeFlow, and a `<my-operator-script>.job.yaml` that can be directly used as described above. 
@@ -400,6 +413,8 @@ It is recommended to avoid executions in the code and to use a main block if the
 if __name__ == '__main__':
     my_function(parameter1, parameter2)
 ```
+
+Note that the grid computing is currently not implemented for R scripts. 
 
 ### 5.2 Compile a grid wrapper with C3
 

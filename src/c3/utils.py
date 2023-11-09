@@ -29,6 +29,9 @@ def convert_notebook(path):
     # convert tp python script
     (code, _) = PythonExporter().from_notebook_node(notebook)
 
+    # add import get_ipython
+    code = 'from IPython import get_ipython \n' + code
+
     py_path = path.split('/')[-1].replace('.ipynb', '.py')
 
     assert not os.path.exists(py_path), f"File {py_path} already exist. Cannot convert notebook."

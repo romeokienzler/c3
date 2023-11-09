@@ -41,7 +41,7 @@ class FileReader(LoggingConfigurable):
 
     @property
     def language(self) -> str:
-        file_extension = os.path.splitext(self._filepath)[-1]
+        file_extension = os.path.splitext(self._filepath)[-1].lower()
         if file_extension == '.py':
             return 'python'
         elif file_extension == '.r':
@@ -119,9 +119,8 @@ class PythonScriptParser(ScriptParser):
         # TODO: add more key:list-of-regex pairs to parse for additional resources
         regex_dict = dict()
 
-        # First regex matches envvar assignments of form os.environ["name"] = value w or w/o value provided
-        # Second regex matches envvar assignments that use os.getenv("name", "value") with ow w/o default provided
-        # Third regex matches envvar assignments that use os.environ.get("name", "value") with or w/o default provided
+        # First regex matches envvar assignments that use os.getenv("name", "value") with ow w/o default provided
+        # Second regex matches envvar assignments that use os.environ.get("name", "value") with or w/o default provided
         # Both name and value are captured if possible
         envs = [r"os\.getenv\([\"']([a-zA-Z_]+[A-Za-z0-9_]*)[\"'](?:\s*\,\s*[\"'](.[^\"']*)?[\"'])?",
                 r"os\.environ\.get\([\"']([a-zA-Z_]+[A-Za-z0-9_]*)[\"'](?:\s*\,(?:\s*[\"'](.[^\"']*)?[\"'])?)*"]
@@ -131,12 +130,10 @@ class PythonScriptParser(ScriptParser):
 
 class RScriptParser(ScriptParser):
     def search_expressions(self) -> Dict[str, List]:
-        # TODO: add more key:list-of-regex pairs to parse for additional resources
         regex_dict = dict()
 
-        # Tests for matches of the form Sys.setenv("key" = "value")
-        envs = [r"Sys\.setenv\([\"']*([a-zA-Z_]+[A-Za-z0-9_]*)[\"']*\s*=\s*[\"']*(.[^\"']*)?[\"']*\)",
-                r"Sys\.getenv\([\"']*([a-zA-Z_]+[A-Za-z0-9_]*)[\"']*\)(.)*"]
+        # Tests for matches of the form: var <- Sys.getenv("key", "optional default")
+        envs = [r".*Sys\.getenv\([\"']*([a-zA-Z_]+[A-Za-z0-9_]*)[\"']*(?:\s*\,\s*[\"']?([A-Za-z0-9_]*)?[\"']?)?\).*"]
         regex_dict["env_vars"] = envs
         return regex_dict
 
@@ -188,7 +185,7 @@ class ContentParser(LoggingConfigurable):
 
         if file_extension == '.ipynb':
             return NotebookReader(filepath)
-        elif file_extension in ['.py', '.r']:
+        elif file_extension.lower() in ['.py', '.r']:
             return FileReader(filepath)
         else:
             raise ValueError(f'File type {file_extension} is not supported.')

@@ -6,7 +6,7 @@
 # C3 - the CLAIMED Component Compiler
 
 **TL;DR**
-- takes arbitrary assets (Jupyter notebooks, python scripts) as input
+- takes arbitrary assets (Jupyter notebooks, python scripts, R scripts) as input
 - automatically creates container images and pushes to container registries
 - automatically installs all required dependencies into the container image
 - creates KubeFlow Pipeline components (target workflow execution engines are pluggable)
@@ -26,14 +26,14 @@ To learn more on how this library works in practice, please have a look at the f
 ### Install
 
 ```sh
-pip install claimed-c3
+pip install claimed
 ```
 
 ### Usage
 
 Just run the following command with your python script or notebook: 
 ```sh
-c3_create_operator --repository "<registry>/<namespace>" "<your-operator-script>.py"
+c3_create_operator "<your-operator-script>.py" --repository "<registry>/<namespace>"
 ```
 
 Your code needs to follow certain requirements which are explained in [Getting Started](https://github.com/claimed-framework/c3/blob/main/GettingStarted.md). 

@@ -14,5 +14,5 @@ implementation:
         - sh
         - -ec
         - |
-          python ${call}
+          ${call}
 ${parameter_values}

@@ -8,6 +8,7 @@ from src.c3.pythonscript import Pythonscript
 
 TEST_NOTEBOOK_PATH = 'example_notebook.ipynb'
 TEST_SCRIPT_PATH = 'example_script.py'
+TEST_RSCRIPT_PATH = 'example_rscript.R'
 DUMMY_REPO = 'test'
 
 test_convert_notebook_input = [
@@ -69,7 +70,7 @@ def test_get_remote_version(
     # testing icr.io requires 'ibmcloud login'
     version = get_image_version(repository, name)
     assert version != '0.1', \
-        f"get_image_version retruns default version 0.1"
+        f"get_image_version returns default version 0.1"
 
 
 test_increase_version_input = [
@@ -95,6 +96,11 @@ def test_increase_version(
 
 test_create_operator_input = [
     (
+        TEST_RSCRIPT_PATH,
+        DUMMY_REPO,
+        [],
+    ),
+    (
         TEST_NOTEBOOK_PATH,
         DUMMY_REPO,
         [],
@@ -103,7 +109,7 @@ test_create_operator_input = [
         TEST_SCRIPT_PATH,
         DUMMY_REPO,
         [TEST_NOTEBOOK_PATH],
-    )
+    ),
 ]
 @pytest.mark.parametrize(
     "file_path, repository, args",
@@ -114,13 +120,16 @@ def test_create_operator(
         repository: str,
         args: List,
 ):
-    subprocess.run(['python', '../src/c3/create_operator.py', file_path, *args, '-r', repository, '--test_mode'],
+    subprocess.run(['python', '../src/c3/create_operator.py', file_path, *args, '-r', repository,
+                    '--test_mode', '-v', 'test', '--log_level', 'DEBUG'],
                    check=True)
 
     file = Path(file_path)
     file.with_suffix('.yaml').unlink()
     file.with_suffix('.job.yaml').unlink()
-    # TODO: Add tests for the created container image
+    image_name = f"{repository}/claimed-{file_path.rsplit('.')[0].replace('_', '-')}:test"
+    subprocess.run(['docker', 'run', image_name],
+                   check=True)
 
 
 test_create_gridwrapper_input = [
@@ -148,7 +157,7 @@ def test_create_gridwrapper(
         args: List,
 ):
     subprocess.run(['python', '../src/c3/create_gridwrapper.py', file_path, *args,
-                    '-r', repository, '-p', process, '--test_mode'], check=True)
+                    '-r', repository, '-p', process, '--test_mode', '-v', 'test', '--log_level', 'DEBUG'], check=True)
 
     file = Path(file_path)
     gw_file = file.parent / f'gw_{file.stem}.py'
@@ -156,4 +165,6 @@ def test_create_gridwrapper(
     gw_file.with_suffix('.yaml').unlink()
     gw_file.with_suffix('.job.yaml').unlink()
     gw_file.unlink()
-    # TODO: Add tests for the created container image
+    image_name = f"{repository}/claimed-gw-{file_path.rsplit('.')[0].replace('_', '-')}:test"
+    subprocess.run(['docker', 'run', image_name],
+                   check=True)
