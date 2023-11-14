@@ -12,7 +12,7 @@ class Pythonscript:
         with open(path, 'r') as f:
             self.script = f.read()
 
-        self.name = os.path.basename(path)[:-3].replace('_', '-')
+        self.name = os.path.basename(path)[:-3].replace('_', '-').lower()
         if '"""' not in self.script:
             logging.warning('Please provide a description of the operator in the first doc string.')
             self.description = self.name

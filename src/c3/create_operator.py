@@ -25,6 +25,7 @@ def create_operator(file_path: str,
                     additional_files: str = None,
                     log_level='INFO',
                     test_mode=False,
+                    no_cache=False,
                     ):
     logging.info('Parameters: ')
     logging.info('file_path: ' + file_path)
@@ -135,7 +136,8 @@ def create_operator(file_path: str,
     logging.info(f'Building container image claimed-{name}:{version}')
     try:
         subprocess.run(
-            ['docker', 'build', '--platform', 'linux/amd64', '-t', f'claimed-{name}:{version}', '.'],
+            ['docker', 'build', '--platform', 'linux/amd64', '-t', f'claimed-{name}:{version}', '.',
+             '--no-cache' if no_cache else ''],
             stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
         )
     except Exception as err:
@@ -269,6 +271,7 @@ def main():
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
     parser.add_argument('--test_mode', action='store_true')
+    parser.add_argument('--no-cache', action='store_true')
     args = parser.parse_args()
 
     # Init logging
@@ -296,6 +299,7 @@ def main():
         additional_files=args.ADDITIONAL_FILES,
         log_level=args.log_level,
         test_mode=args.test_mode,
+        no_cache=args.no_cache,
     )
 
 

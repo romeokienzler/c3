@@ -133,7 +133,7 @@ class RScriptParser(ScriptParser):
         regex_dict = dict()
 
         # Tests for matches of the form: var <- Sys.getenv("key", "optional default")
-        envs = [r".*Sys\.getenv\([\"']*([a-zA-Z_]+[A-Za-z0-9_]*)[\"']*(?:\s*\,\s*[\"']?([A-Za-z0-9_]*)?[\"']?)?\).*"]
+        envs = [r".*Sys\.getenv\([\"']*([a-zA-Z_]+[A-Za-z0-9_]*)[\"']*(?:\s*\,\s*[\"']?(.*)?[\"']?)?\).*"]
         regex_dict["env_vars"] = envs
         return regex_dict
 

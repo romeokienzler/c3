@@ -12,7 +12,7 @@ class Rscript:
         with open(path, 'r') as f:
             self.script = f.read()
 
-        self.name = os.path.basename(path)[:-2].replace('_', '-')
+        self.name = os.path.basename(path)[:-2].replace('_', '-').lower()
         # TODO: Currently does not support a description
         self.description = self.name
         self.envs = self._get_env_vars()
