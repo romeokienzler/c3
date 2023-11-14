@@ -136,9 +136,18 @@ def create_operator(file_path: str,
     logging.info(f'Building container image claimed-{name}:{version}')
     try:
         subprocess.run(
-            ['docker', 'build', '--platform', 'linux/amd64', '-t', f'claimed-{name}:{version}', '.',
-             '--no-cache' if no_cache else ''],
-            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
+            f"docker build --platform linux/amd64 -t claimed-{name}:{version} . {'--no-cache' if no_cache else ''}",
+            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True
+        )
+
+        logging.debug(f'Tagging images with "latest" and "{version}"')
+        subprocess.run(
+            f"docker tag claimed-{name}:{version} {repository}/claimed-{name}:{version}",
+            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
+        )
+        subprocess.run(
+            f"docker tag claimed-{name}:{version} {repository}/claimed-{name}:latest",
+            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
         )
     except Exception as err:
         # remove temp files
@@ -147,27 +156,17 @@ def create_operator(file_path: str,
         os.remove('Dockerfile')
         shutil.rmtree(additional_files_path, ignore_errors=True)
         raise err
-
-    logging.debug(f'Tagging images with "latest" and "{version}"')
-    subprocess.run(
-        ['docker', 'tag', f'claimed-{name}:{version}', f'{repository}/claimed-{name}:{version}'],
-        stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
-    )
-    subprocess.run(
-        ['docker', 'tag', f'claimed-{name}:{version}', f'{repository}/claimed-{name}:latest'],
-        stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
-    )
     logging.info('Successfully built image')
 
     logging.info(f'Pushing images to registry {repository}')
     try:
         subprocess.run(
-            ['docker', 'push', f'{repository}/claimed-{name}:latest'],
-            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
+            f"docker push {repository}/claimed-{name}:latest",
+            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
         )
         subprocess.run(
-            ['docker', 'push', f'{repository}/claimed-{name}:{version}'],
-            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True,
+            f"docker push {repository}/claimed-{name}:{version}",
+            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
         )
         logging.info('Successfully pushed image to registry')
     except Exception as err:
