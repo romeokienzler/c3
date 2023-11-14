@@ -24,7 +24,7 @@ class Pythonscript:
         cp = ContentParser()
         env_names = cp.parse(self.path)['env_vars']
         return_value = dict()
-        for env_name in env_names:
+        for env_name, default in env_names.items():
             comment_line = str()
             for line in self.script.split('\n'):
                 if re.search("[\"']" + env_name + "[\"']", line):
@@ -42,15 +42,6 @@ class Pythonscript:
                         type = 'Boolean'
                     else:
                         type = 'String'
-                    # get default value
-                    if re.search(r"\(.*,.*\)", line):
-                        # extract int, float, bool
-                        default = re.search(r",\s*(.*?)\s*\)", line).group(1)
-                        if type == 'String' and default != 'None':
-                            # Process string default value
-                            default = default[1:-1].replace("\"", "\'")
-                    else:
-                        default = None
                     return_value[env_name] = {
                         'description': comment_line.replace('#', '').replace("\"", "\'").strip(),
                         'type': type,

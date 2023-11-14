@@ -122,8 +122,8 @@ class PythonScriptParser(ScriptParser):
         # First regex matches envvar assignments that use os.getenv("name", "value") with ow w/o default provided
         # Second regex matches envvar assignments that use os.environ.get("name", "value") with or w/o default provided
         # Both name and value are captured if possible
-        envs = [r"os\.getenv\([\"']([a-zA-Z_]+[A-Za-z0-9_]*)[\"'](?:\s*\,\s*[\"'](.[^\"']*)?[\"'])?",
-                r"os\.environ\.get\([\"']([a-zA-Z_]+[A-Za-z0-9_]*)[\"'](?:\s*\,(?:\s*[\"'](.[^\"']*)?[\"'])?)*"]
+        envs = [r"os\.getenv\([\"']([a-zA-Z_]+[A-Za-z0-9_]*)[\"']*(?:\s*\,\s*[\"']?(.[^#]*)?[\"']?)?\).*",
+                r"os\.environ\.get\([\"']([a-zA-Z_]+[A-Za-z0-9_]*)[\"']*(?:\s*\,\s*[\"']?(.[^#]*)?[\"']?)?\).*"]
         regex_dict["env_vars"] = envs
         return regex_dict
 
@@ -133,7 +133,7 @@ class RScriptParser(ScriptParser):
         regex_dict = dict()
 
         # Tests for matches of the form: var <- Sys.getenv("key", "optional default")
-        envs = [r".*Sys\.getenv\([\"']*([a-zA-Z_]+[A-Za-z0-9_]*)[\"']*(?:\s*\,\s*[\"']?(.*)?[\"']?)?\).*"]
+        envs = [r".*Sys\.getenv\([\"']*([a-zA-Z_]+[A-Za-z0-9_]*)[\"']*(?:\s*\,\s*[\"']?(.[^#]*)?[\"']?)?\).*"]
         regex_dict["env_vars"] = envs
         return regex_dict
 
@@ -160,7 +160,11 @@ class ContentParser(LoggingConfigurable):
                     matches = parser.parse_environment_variables(line)
                     for key, match in matches:
                         if key == "env_vars":
-                            properties[key][match.group(1)] = match.group(2)
+                            default_value = match.group(2)
+                            if default_value:
+                                # The default value match can end with a additional ', ", or ) which is removed
+                                default_value = re.sub(r"['\")]?$", '', default_value, count=1)
+                            properties[key][match.group(1)] = default_value
                         else:
                             properties[key].append(match.group(1))
 
