@@ -96,6 +96,11 @@ def test_increase_version(
 
 test_create_operator_input = [
     (
+        TEST_SCRIPT_PATH,
+        DUMMY_REPO,
+        [TEST_NOTEBOOK_PATH],
+    ),
+    (
         TEST_RSCRIPT_PATH,
         DUMMY_REPO,
         [],
@@ -104,11 +109,6 @@ test_create_operator_input = [
         TEST_NOTEBOOK_PATH,
         DUMMY_REPO,
         [],
-    ),
-    (
-        TEST_SCRIPT_PATH,
-        DUMMY_REPO,
-        [TEST_NOTEBOOK_PATH],
     ),
 ]
 @pytest.mark.parametrize(
@@ -127,6 +127,7 @@ def test_create_operator(
     file = Path(file_path)
     file.with_suffix('.yaml').unlink()
     file.with_suffix('.job.yaml').unlink()
+    file.with_suffix('.cwl').unlink()
     image_name = f"{repository}/claimed-{file_path.rsplit('.')[0].replace('_', '-')}:test"
     subprocess.run(['docker', 'run', image_name],
                    check=True)
@@ -164,6 +165,7 @@ def test_create_gridwrapper(
 
     gw_file.with_suffix('.yaml').unlink()
     gw_file.with_suffix('.job.yaml').unlink()
+    gw_file.with_suffix('.cwl').unlink()
     gw_file.unlink()
     image_name = f"{repository}/claimed-gw-{file_path.rsplit('.')[0].replace('_', '-')}:test"
     subprocess.run(['docker', 'run', image_name],

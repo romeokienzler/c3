@@ -21,7 +21,13 @@ This page explains how to apply operators, combine them to workflows, and how to
 
 ## 1. Apply operators
 
-An operator is a single processing step such as a kubernetes job. You can run an operator via [CLAIMED CLI](https://github.com/claimed-framework/cli), use them in [workflows](#3-create-workflows), or deploy a kubernetes job using the `job.yaml` which is explained in the following.
+An operator is a single processing step. You can run the script locally with the [CLAIMED CLI](https://github.com/claimed-framework/cli) using the following command:
+```shell
+claimed --component <registry>/<image>:<version> --<parameter1> <value2> --<parameter2> <value2> ...
+```
+
+Besides CLAIMED CLI, you can use an operator in [workflows](#3-create-workflows), or deploy a kubernetes job using the `job.yaml` which is explained in the following.
+
 
 ### 1.1 Specify the job
 
@@ -200,7 +206,11 @@ You can also use the operators in workflows as explained in the next section.
 
 ## 3. Create workflows
 
-Multiple operators can be combined to a workflow, e.g., a KubeFlow pipeline. Therefore, C3 creates `<operator>.yaml` files which define a KFP component. After initializing your operators, you can combine them in a pipeline function. 
+Multiple operators can be combined to a workflow, e.g., a KubeFlow pipeline or a CWL workflow. Therefore, C3 creates `<operator>.yaml` files which define a KFP component and `<operator>.cwl` files for a CWL step. 
+
+### KubeFlow Pipeline
+
+After initializing your operators, you can combine them in a pipeline function: 
 
 ```python
 # pip install kfp
@@ -251,6 +261,50 @@ from kfp_tekton.compiler import TektonCompiler
 TektonCompiler().compile(pipeline_func=my_pipeline, package_path='my_pipeline.yaml')
 ```
 
+### CWL workflows
+
+You can run workflows locally with CWL. This requires the cwltool package:
+```shell
+pip install cwltool
+```
+
+You can create a CWL workflow by combining multiple CWL steps:
+
+```text
+cwlVersion: v1.0
+class: Workflow
+
+inputs:
+  parameter1: string
+  parameter2: string
+  parameter3: string
+
+outputs:
+  parameter4: string
+
+steps:
+  <component>.cwl:
+    run: ./path/to/<component>.cwl
+    in:
+        parameter1: parameter1
+        parameter2: parameter2
+    out: 
+        parameter3: parameter3
+  <component2>.cwl:
+    run: ./path/to/<component2>.cwl
+    in:
+        parameter3: parameter3
+    out: 
+        parameter4: parameter4
+```
+
+If a workflow or component does not have outputs, use `outputs: []`. 
+
+Run the CWL workflow in your terminal with:
+```shell
+cwltool <workflow>.cwl --parameter1 <value1> --parameter2 <value2> --parameter3 <value3> --parameter4 <value4>
+```
+
 ---
 
 ## 4. Create operators
@@ -276,12 +330,17 @@ Your operator script has to follow certain requirements to be processed by C3. C
 
 You can optionally install future tools with `dnf` by adding a comment `# dnf <command>`. 
 
+If you want to install a `requirements.txt` file you need to consider two steps: 
+First, you need to include the file as an additional file in the c3 command. 
+Second, the Dockerfile is executed from root while the files are placed in the working directory. 
+Therefore, use the command `pip install -r /opt/app-root/src/requirements.txt`.
+
 #### iPython notebooks
 
 - The operator name is the notebook file: `my_operator_name.ipynb` -> `claimed-my-operator-name`
 - The notebook is converted by `nbconvert` to a python script before creating the operator by merging all cells. 
 - Markdown cells are converted into doc strings. shell commands with `!...` are converted into `get_ipython().run_line_magic()`.
-- The requirements of python scripts apply to the notebook code (The operator description can be a markdown cell).
+- The requirements of python scripts apply to the notebook code (The operator description can be the first markdown cell).
 
 #### R scripts
 

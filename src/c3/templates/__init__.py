@@ -11,6 +11,7 @@ PYTHON_DOCKERFILE_FILE = 'python_dockerfile_template'
 R_DOCKERFILE_FILE = 'R_dockerfile_template'
 KFP_COMPONENT_FILE = 'kfp_component_template.yaml'
 KUBERNETES_JOB_FILE = 'kubernetes_job_template.job.yaml'
+CWL_COMPONENT_FILE = 'cwl_component_template.cwl'
 GRID_WRAPPER_FILE = 'grid_wrapper_template.py'
 COS_GRID_WRAPPER_FILE = 'cos_grid_wrapper_template.py'
 
@@ -37,6 +38,9 @@ with open(template_path / KFP_COMPONENT_FILE, 'r') as f:
 
 with open(template_path / KUBERNETES_JOB_FILE, 'r') as f:
     kubernetes_job_template = Template(f.read())
+
+with open(template_path / CWL_COMPONENT_FILE, 'r') as f:
+    cwl_component_template = Template(f.read())
 
 with open(template_path / GRID_WRAPPER_FILE, 'r') as f:
     grid_wrapper_template = Template(f.read())

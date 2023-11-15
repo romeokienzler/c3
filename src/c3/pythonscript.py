@@ -55,14 +55,14 @@ class Pythonscript:
         requirements = []
         # Add dnf install
         for line in self.script.split('\n'):
-            if re.search(r'[\s#]*dnf\s*[A-Za-z0-9_-]*', line):
+            if re.search(r'[\s#]*dnf\s*.[^#]*', line):
                 if '-y' not in line:
                     # Adding default repo
                     line += ' -y'
                 requirements.append(line.replace('#', '').strip())
 
         # Add pip install
-        pattern = r"([ ]*pip[ ]*install[ ]*)([A-Za-z=0-9.\-: ]*)"
+        pattern = r"([ ]*pip[ ]*install[ ]*)(.[^#]*)"
         for line in self.script.split('\n'):
             result = re.findall(pattern, line)
             if len(result) == 1:
