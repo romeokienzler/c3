@@ -75,7 +75,7 @@ class Rscript:
 
     def get_inputs(self):
         # return {key: value for (key, value) in self.envs.items() if not key.startswith('output_')}
-        return self.envs.items()
+        return self.envs
 
     def get_outputs(self):
         # return {key: value for (key, value) in self.envs.items() if key.startswith('output_')}

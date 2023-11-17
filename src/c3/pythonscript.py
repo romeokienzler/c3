@@ -76,7 +76,7 @@ class Pythonscript:
         return self.description
 
     def get_inputs(self):
-        return self.envs.items()
+        return self.envs
         # return {key: value for (key, value) in self.envs.items() if not key.startswith('output_')}
 
     def get_outputs(self):
