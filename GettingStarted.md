@@ -278,9 +278,8 @@ inputs:
   parameter1: string
   parameter2: string
   parameter3: string
-
-outputs:
   parameter4: string
+outputs: []
 
 steps:
   <component>.cwl:
@@ -288,17 +287,15 @@ steps:
     in:
         parameter1: parameter1
         parameter2: parameter2
-    out: 
         parameter3: parameter3
+    out: []
   <component2>.cwl:
     run: ./path/to/<component2>.cwl
     in:
         parameter3: parameter3
-    out: 
         parameter4: parameter4
-```
-
-If a workflow or component does not have outputs, use `outputs: []`. 
+    out: []
+``` 
 
 Run the CWL workflow in your terminal with:
 ```shell
@@ -350,7 +347,7 @@ Therefore, use the command `pip install -r /opt/app-root/src/requirements.txt`.
 - The interface is defined by environment variables `my_parameter <- Sys.getenv('my_parameter', 'optional_default_value')`. Output paths start with `output_<path>`. Note that operators cannot return values but always have to save outputs in files.
 - You can cast a specific type by wrapping `Sys.getenv()` with `as.numeric()` or `as.logical()`. The default type is string. Only these three types are currently supported. You can use `NULL` as a default value but not pass `NULL` via the `job.yaml`.
 
-You can optionally install future tools with `apt` by adding a comment `# apt <command>`
+You can optionally install future tools with `apt` by adding a comment `# apt <command>`.
 
 #### Example
 

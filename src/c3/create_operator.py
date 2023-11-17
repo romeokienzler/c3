@@ -112,10 +112,7 @@ def create_cwl_component(name, repository, version, file_path, inputs, outputs):
         input_envs += (f"  {input}:\n    type: string\n    default: {options['default']}\n    "
                        f"inputBinding:\n      position: {i}\n      prefix: --{input}\n")
 
-    if len(outputs) == 0:
-        output_envs = '[]'
-    else:
-        output_envs = '\n'
+    output_envs = '\n'
     for output, options in outputs.items():
         i += 1
         output_envs += (f"  {output}:\n    type: string\n    default: {options['default']}\n    "

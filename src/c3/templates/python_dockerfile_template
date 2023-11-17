@@ -6,4 +6,5 @@ RUN pip install ipython
 ${requirements_docker}
 RUN chmod -R 777 ${working_dir}
 USER default
-CMD ["${command}", "${working_dir}${target_code}"]
+WORKDIR "${working_dir}"
+CMD ["${command}", "${target_code}"]

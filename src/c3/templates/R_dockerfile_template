@@ -7,4 +7,5 @@ ADD ${additional_files_path} ${working_dir}
 RUN chmod -R 777 ${working_dir}
 RUN chmod -R 777 /usr/local/lib/R/
 USER docker
-CMD ["${command}", "${working_dir}${target_code}"]
+WORKDIR "${working_dir}"
+CMD ["${command}", "${target_code}"]

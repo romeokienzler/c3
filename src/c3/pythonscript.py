@@ -76,7 +76,10 @@ class Pythonscript:
         return self.description
 
     def get_inputs(self):
-        return {key: value for (key, value) in self.envs.items() if not key.startswith('output_')}
+        return self.envs.items()
+        # return {key: value for (key, value) in self.envs.items() if not key.startswith('output_')}
 
     def get_outputs(self):
-        return {key: value for (key, value) in self.envs.items() if key.startswith('output_')}
+        # TODO: Test Kubeflow outputs. Does not fit current usage. Maybe use os.setenv()
+        return {}
+        # return {key: value for (key, value) in self.envs.items() if key.startswith('output_')}
