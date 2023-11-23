@@ -261,6 +261,95 @@ from kfp_tekton.compiler import TektonCompiler
 TektonCompiler().compile(pipeline_func=my_pipeline, package_path='my_pipeline.yaml')
 ```
 
+If you are using another tekton version, you can use the following code to save an adjusted yaml file for version `v1beta1`: 
+
+```python
+# pip install kfp-tekton pyyaml
+
+import yaml
+from kfp_tekton.compiler import TektonCompiler
+
+# Read dict to update apiVersion
+_, pipeline_dict = TektonCompiler().prepare_workflow(my_pipeline)
+pipeline_dict['apiVersion'] = 'tekton.dev/v1beta1'
+# write pipeline to yaml
+with open('my_pipeline.yaml', 'w') as f:
+    yaml.dump(pipeline_dict, f)
+```
+
+#### Timeout in KubeFlow Tekton
+
+The default timeout in a KFP tekton pipeline is set to 60 minutes. The default value can be changed in the tekton config by the [administrators](https://tekton.dev/docs/pipelines/pipelineruns/#configuring-a-failure-timeout). Otherwise, you can update the timeout in the yaml with the following code:
+
+```python
+# Read dict to update apiVersion and timeouts
+_, pipeline_dict = TektonCompiler().prepare_workflow(my_pipeline)
+pipeline_dict['spec']['timeouts'] = {'pipeline': "0"}  # 0 = no timeout
+# write pipeline to yaml
+with open('my_pipeline.yaml', 'w') as f:
+    yaml.dump(pipeline_dict, f)
+```
+
+#### Shared volumes
+
+Data is not shared by default between different steps. 
+You can add a volume to each step for data sharing. 
+First, you create a PersistentVolumeClaim (PVC) in the Kubernetes project that is running KubeFlow.
+If you want to run multiple steps in parallel, this PVC must support ReadWriteMany, otherwise ReadWirteOnce is sufficient.
+Next, you can mount this PVC to each step with the following code:
+
+```python
+mount_folder = "/opt/app-root/src/<folder>"
+
+# Init the KFP component
+step = my_kfp_op(...)
+
+step.add_pvolumes({mount_folder: dsl.PipelineVolume(pvc='<pvc_name>')})
+```
+
+You can include the working directory in the mount path to use relative paths (`/opt/app-root/src/` for python and `home/docker` for R). 
+Otherwise, you can use absolute paths in your scripts/variables `/<folder>/...`. 
+
+#### Secrets
+
+You can use key-value secrets in KubeFlow as well to avoid publishing sensible information in pod configs and logs. 
+You can add the secrets in the Kubernetes project that is running KubeFlow.
+Then, you can add secrets to a specfic step in the pipeline with the following code:
+
+```python
+from kubernetes.client import V1EnvVar, V1EnvVarSource, V1SecretKeySelector
+
+# Init the KFP component
+step = my_kfp_op(...)
+
+# Add a secret as env variable
+secret_env_var = V1EnvVar(
+    name='<variable_name>',
+    value_from=V1EnvVarSource(secret_key_ref=V1SecretKeySelector(name='<secret_name>', key='<secret_key>')
+))
+step.add_env_variable(secret_env_var)
+```
+
+The secret will be set as an env variable and load by the common C3 interface.
+Therefore, it is important that KubeFlow does not everwrite this env variable. 
+You need to adjust the command in the KFP component yaml by deleting the variable: 
+```yaml
+# Original command with secret_variable
+command:
+  ...
+  python ./<my_script>.py log_level="${0}" <secret_variable>="${1}" other_variable="${2}" ...
+  ...
+
+# Adjusted command
+command:
+  ...
+  python ./<my_script>.py log_level="${0}" other_variable="${2}" ...
+  ...
+```
+Further, it is important, that the variable has a default value and is optional 
+(You can simply add `default: ""` to the variable in the KFP component yaml without recompiling your script).
+
+
 ### CWL workflows
 
 You can run workflows locally with CWL. This requires the cwltool package:
@@ -322,8 +411,9 @@ Your operator script has to follow certain requirements to be processed by C3. C
 - The operator name is the python file: `my_operator_name.py` -> `claimed-my-operator-name`
 - The operator description is the first doc string in the script: `"""Operator description"""`
 - The required pip packages are listed in comments starting with pip install: `# pip install <package1> <package2>`
-- The interface is defined by environment variables `my_parameter = os.getenv('my_parameter')`. Output paths start with `output_<path>`. Note that operators cannot return values but always have to save outputs in files.
+- The interface is defined by environment variables `my_parameter = os.getenv('my_parameter')`. 
 - You can cast a specific type by wrapping `os.getenv()` with `int()`, `float()`, `bool()`. The default type is string. Only these four types are currently supported. You can use `None` as a default value but not pass the `NoneType` via the `job.yaml`.
+- Output paths for KubeFlow can be defined with `os.environ['my_output_parameter'] = ...'`. Note that operators cannot return values but always have to save outputs in files.
 
 You can optionally install future tools with `dnf` by adding a comment `# dnf <command>`. 
 
@@ -344,8 +434,9 @@ Therefore, use the command `pip install -r /opt/app-root/src/requirements.txt`.
 - The operator name is the python file: `my_operator_name.R` -> `claimed-my-operator-name`
 - The operator description is currently fixed to `"R script"`.
 - The required R packages are installed with: `install.packages(<packname>, repos=<optional repo>)`
-- The interface is defined by environment variables `my_parameter <- Sys.getenv('my_parameter', 'optional_default_value')`. Output paths start with `output_<path>`. Note that operators cannot return values but always have to save outputs in files.
+- The interface is defined by environment variables `my_parameter <- Sys.getenv('my_parameter', 'optional_default_value')`. 
 - You can cast a specific type by wrapping `Sys.getenv()` with `as.numeric()` or `as.logical()`. The default type is string. Only these three types are currently supported. You can use `NULL` as a default value but not pass `NULL` via the `job.yaml`.
+- Output paths for KubeFlow can be defined with `Sys.setenv()`. Note that operators cannot return values but always have to save outputs in files.
 
 You can optionally install future tools with `apt` by adding a comment `# apt <command>`.
 
