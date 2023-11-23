@@ -21,7 +21,13 @@ This page explains how to apply operators, combine them to workflows, and how to
 
 ## 1. Apply operators
 
-An operator is a single processing step such as a kubernetes job. You can run an operator via [CLAIMED CLI](https://github.com/claimed-framework/cli), use them in [workflows](#3-create-workflows), or deploy a kubernetes job using the `job.yaml` which is explained in the following.
+An operator is a single processing step. You can run the script locally with the [CLAIMED CLI](https://github.com/claimed-framework/cli) using the following command:
+```shell
+claimed --component <registry>/<image>:<version> --<parameter1> <value2> --<parameter2> <value2> ...
+```
+
+Besides CLAIMED CLI, you can use an operator in [workflows](#3-create-workflows), or deploy a kubernetes job using the `job.yaml` which is explained in the following.
+
 
 ### 1.1 Specify the job
 
@@ -170,6 +176,7 @@ kubectl apply -f <operator>.job.yaml
 # kill job
 kubectl delete -f <operator>.job.yaml
 ```
+Note that calling `kubectl apply` two times can lead to an error because jobs have unique names. If a job with the same name is running, you might need to kill the job before restarting it.
 
 The job creates a pod which is accessible via the browser UI or via CLI using the standard kubectl commands.
 ```sh
@@ -199,7 +206,11 @@ You can also use the operators in workflows as explained in the next section.
 
 ## 3. Create workflows
 
-Multiple operators can be combined to a workflow, e.g., a KubeFlow pipeline. Therefore, C3 creates `<operator>.yaml` files which define a KFP component. After initializing your operators, you can combine them in a pipeline function. 
+Multiple operators can be combined to a workflow, e.g., a KubeFlow pipeline or a CWL workflow. Therefore, C3 creates `<operator>.yaml` files which define a KFP component and `<operator>.cwl` files for a CWL step. 
+
+### KubeFlow Pipeline
+
+After initializing your operators, you can combine them in a pipeline function: 
 
 ```python
 # pip install kfp
@@ -250,6 +261,136 @@ from kfp_tekton.compiler import TektonCompiler
 TektonCompiler().compile(pipeline_func=my_pipeline, package_path='my_pipeline.yaml')
 ```
 
+If you are using another tekton version, you can use the following code to save an adjusted yaml file for version `v1beta1`: 
+
+```python
+# pip install kfp-tekton pyyaml
+
+import yaml
+from kfp_tekton.compiler import TektonCompiler
+
+# Read dict to update apiVersion
+_, pipeline_dict = TektonCompiler().prepare_workflow(my_pipeline)
+pipeline_dict['apiVersion'] = 'tekton.dev/v1beta1'
+# write pipeline to yaml
+with open('my_pipeline.yaml', 'w') as f:
+    yaml.dump(pipeline_dict, f)
+```
+
+#### Timeout in KubeFlow Tekton
+
+The default timeout in a KFP tekton pipeline is set to 60 minutes. The default value can be changed in the tekton config by the [administrators](https://tekton.dev/docs/pipelines/pipelineruns/#configuring-a-failure-timeout). Otherwise, you can update the timeout in the yaml with the following code:
+
+```python
+# Read dict to update apiVersion and timeouts
+_, pipeline_dict = TektonCompiler().prepare_workflow(my_pipeline)
+pipeline_dict['spec']['timeouts'] = {'pipeline': "0"}  # 0 = no timeout
+# write pipeline to yaml
+with open('my_pipeline.yaml', 'w') as f:
+    yaml.dump(pipeline_dict, f)
+```
+
+#### Shared volumes
+
+Data is not shared by default between different steps. 
+You can add a volume to each step for data sharing. 
+First, you create a PersistentVolumeClaim (PVC) in the Kubernetes project that is running KubeFlow.
+If you want to run multiple steps in parallel, this PVC must support ReadWriteMany, otherwise ReadWirteOnce is sufficient.
+Next, you can mount this PVC to each step with the following code:
+
+```python
+mount_folder = "/opt/app-root/src/<folder>"
+
+# Init the KFP component
+step = my_kfp_op(...)
+
+step.add_pvolumes({mount_folder: dsl.PipelineVolume(pvc='<pvc_name>')})
+```
+
+You can include the working directory in the mount path to use relative paths (`/opt/app-root/src/` for python and `home/docker` for R). 
+Otherwise, you can use absolute paths in your scripts/variables `/<folder>/...`. 
+
+#### Secrets
+
+You can use key-value secrets in KubeFlow as well to avoid publishing sensible information in pod configs and logs. 
+You can add the secrets in the Kubernetes project that is running KubeFlow.
+Then, you can add secrets to a specfic step in the pipeline with the following code:
+
+```python
+from kubernetes.client import V1EnvVar, V1EnvVarSource, V1SecretKeySelector
+
+# Init the KFP component
+step = my_kfp_op(...)
+
+# Add a secret as env variable
+secret_env_var = V1EnvVar(
+    name='<variable_name>',
+    value_from=V1EnvVarSource(secret_key_ref=V1SecretKeySelector(name='<secret_name>', key='<secret_key>')
+))
+step.add_env_variable(secret_env_var)
+```
+
+The secret will be set as an env variable and load by the common C3 interface.
+Therefore, it is important that KubeFlow does not everwrite this env variable. 
+You need to adjust the command in the KFP component yaml by deleting the variable: 
+```yaml
+# Original command with secret_variable
+command:
+  ...
+  python ./<my_script>.py log_level="${0}" <secret_variable>="${1}" other_variable="${2}" ...
+  ...
+
+# Adjusted command
+command:
+  ...
+  python ./<my_script>.py log_level="${0}" other_variable="${2}" ...
+  ...
+```
+Further, it is important, that the variable has a default value and is optional 
+(You can simply add `default: ""` to the variable in the KFP component yaml without recompiling your script).
+
+
+### CWL workflows
+
+You can run workflows locally with CWL. This requires the cwltool package:
+```shell
+pip install cwltool
+```
+
+You can create a CWL workflow by combining multiple CWL steps:
+
+```text
+cwlVersion: v1.0
+class: Workflow
+
+inputs:
+  parameter1: string
+  parameter2: string
+  parameter3: string
+  parameter4: string
+outputs: []
+
+steps:
+  <component>.cwl:
+    run: ./path/to/<component>.cwl
+    in:
+        parameter1: parameter1
+        parameter2: parameter2
+        parameter3: parameter3
+    out: []
+  <component2>.cwl:
+    run: ./path/to/<component2>.cwl
+    in:
+        parameter3: parameter3
+        parameter4: parameter4
+    out: []
+``` 
+
+Run the CWL workflow in your terminal with:
+```shell
+cwltool <workflow>.cwl --parameter1 <value1> --parameter2 <value2> --parameter3 <value3> --parameter4 <value4>
+```
+
 ---
 
 ## 4. Create operators
@@ -258,7 +399,7 @@ TektonCompiler().compile(pipeline_func=my_pipeline, package_path='my_pipeline.ya
 
 You can install C3 via pip:
 ```sh
-pip install claimed-c3
+pip install claimed
 ```
 
 ### 4.2 C3 requirements
@@ -270,15 +411,34 @@ Your operator script has to follow certain requirements to be processed by C3. C
 - The operator name is the python file: `my_operator_name.py` -> `claimed-my-operator-name`
 - The operator description is the first doc string in the script: `"""Operator description"""`
 - The required pip packages are listed in comments starting with pip install: `# pip install <package1> <package2>`
-- The interface is defined by environment variables `my_parameter = os.getenv('my_parameter')`. Output paths start with `output_<path>`. Note that operators cannot return values but always have to save outputs in files.
+- The interface is defined by environment variables `my_parameter = os.getenv('my_parameter')`. 
 - You can cast a specific type by wrapping `os.getenv()` with `int()`, `float()`, `bool()`. The default type is string. Only these four types are currently supported. You can use `None` as a default value but not pass the `NoneType` via the `job.yaml`.
+- Output paths for KubeFlow can be defined with `os.environ['my_output_parameter'] = ...'`. Note that operators cannot return values but always have to save outputs in files.
+
+You can optionally install future tools with `dnf` by adding a comment `# dnf <command>`. 
+
+If you want to install a `requirements.txt` file you need to consider two steps: 
+First, you need to include the file as an additional file in the c3 command. 
+Second, the Dockerfile is executed from root while the files are placed in the working directory. 
+Therefore, use the command `pip install -r /opt/app-root/src/requirements.txt`.
 
 #### iPython notebooks
 
 - The operator name is the notebook file: `my_operator_name.ipynb` -> `claimed-my-operator-name`
-- The notebook is converted to a python script before creating the operator by merging all cells. 
-- Markdown cells are converted into doc strings. shell commands with `!...` are converted into `os.system()`.
-- The requirements of python scripts apply to the notebook code (The operator description can be a markdown cell).
+- The notebook is converted by `nbconvert` to a python script before creating the operator by merging all cells. 
+- Markdown cells are converted into doc strings. shell commands with `!...` are converted into `get_ipython().run_line_magic()`.
+- The requirements of python scripts apply to the notebook code (The operator description can be the first markdown cell).
+
+#### R scripts
+
+- The operator name is the python file: `my_operator_name.R` -> `claimed-my-operator-name`
+- The operator description is currently fixed to `"R script"`.
+- The required R packages are installed with: `install.packages(<packname>, repos=<optional repo>)`
+- The interface is defined by environment variables `my_parameter <- Sys.getenv('my_parameter', 'optional_default_value')`. 
+- You can cast a specific type by wrapping `Sys.getenv()` with `as.numeric()` or `as.logical()`. The default type is string. Only these three types are currently supported. You can use `NULL` as a default value but not pass `NULL` via the `job.yaml`.
+- Output paths for KubeFlow can be defined with `Sys.setenv()`. Note that operators cannot return values but always have to save outputs in files.
+
+You can optionally install future tools with `apt` by adding a comment `# apt <command>`.
 
 #### Example
 
@@ -362,7 +522,7 @@ If you don't have access to the repository, C3 still creates the docker image an
 
 View all arguments by running:
 ```sh
-c3_create_operator --help     
+c3_create_operator --help
 ```
 
 C3 generates the container image that is pushed to the registry, a `<my-operator-script>.yaml` file for KubeFlow, and a `<my-operator-script>.job.yaml` that can be directly used as described above. 
@@ -400,6 +560,8 @@ It is recommended to avoid executions in the code and to use a main block if the
 if __name__ == '__main__':
     my_function(parameter1, parameter2)
 ```
+
+Note that the grid computing is currently not implemented for R scripts. 
 
 ### 5.2 Compile a grid wrapper with C3
 

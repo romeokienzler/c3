@@ -29,6 +29,9 @@ def convert_notebook(path):
     # convert tp python script
     (code, _) = PythonExporter().from_notebook_node(notebook)
 
+    # add import get_ipython
+    code = 'from IPython import get_ipython \n' + code
+
     py_path = path.split('/')[-1].replace('.ipynb', '.py')
 
     assert not os.path.exists(py_path), f"File {py_path} already exist. Cannot convert notebook."
@@ -84,13 +87,14 @@ def pull_icr_image_tags(image):
     ).stdout.decode('utf-8')
 
     try:
+        assert 'You have no images in the namespaces' not in output
         # remove header and final status
         image_list = output.splitlines()[3:-2]
         # get list of image tags
         image_tags = [line.split()[1] for line in image_list]
     except:
         image_tags = []
-        logging.error(f"Could not load image tags from 'ibmcloud cr images' output: {output}")
+        logging.warning(f"Could not load image tags from 'ibmcloud cr images' output: {output}")
         pass
 
     # filter latest and none

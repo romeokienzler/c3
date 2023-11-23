@@ -1,0 +1,10 @@
+FROM registry.access.redhat.com/ubi8/python-39
+USER root
+ADD ${target_code} ${working_dir}
+ADD ${additional_files_path} ${working_dir}
+RUN pip install ipython
+${requirements_docker}
+RUN chmod -R 777 ${working_dir}
+USER default
+WORKDIR "${working_dir}"
+CMD ["${command}", "${target_code}"]

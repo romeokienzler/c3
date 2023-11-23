@@ -6,11 +6,13 @@ This is the operator description.
 
 #!pip install pandas
 
+# dnf update
+
 import os
 import numpy as np
 
 # A comment one line above os.getenv is the description of this variable.
-input_path = os.environ.get('input_path', None  )  # ('not this')
+input_path = os.environ.get('input_path', None)  # ('not this')
 
 # type casting to int(), float(), or bool()
 batch_size = int(os.environ.get('batch_size', 16))  # (not this)
@@ -27,6 +29,8 @@ def main(*args):
     The compiler only includes the first doc string.This text should not be included.
     """
     _ = np.random.randn(5)
+
+    os.environ['test_output'] = 'test'
 
     print(args)
 
