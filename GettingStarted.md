@@ -5,6 +5,9 @@ The [CLAIMED framework](https://github.com/claimed-framework) enables ease-of-us
 A central tool of CLAIMED is the **Claimed Component Compiler (C3)** which creates a docker image with all dependencies, pushes the container to a registry, and creates a kubernetes-job.yaml as well as a kubeflow-pipeline-component.yaml. 
 This page explains how to apply operators, combine them to workflows, and how to build them yourself using C3.
 
+If you like CLAIMED, just give us a [star](https://github.com/claimed-framework/component-library) on our [main project](https://github.com/claimed-framework/component-library).
+
+
 ## Content
 
 **[1. Apply operators](#1-apply-operators)**
