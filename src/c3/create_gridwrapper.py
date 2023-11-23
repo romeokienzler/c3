@@ -7,7 +7,7 @@ from string import Template
 from c3.pythonscript import Pythonscript
 from c3.utils import convert_notebook
 from c3.create_operator import create_operator
-from c3.templates import grid_wrapper_template, cos_grid_wrapper_template, gw_component_setup_code, dockerfile_template
+from c3.templates import grid_wrapper_template, cos_grid_wrapper_template, gw_component_setup_code
 
 
 def wrap_component(component_path,
@@ -175,15 +175,15 @@ def main():
         if args.dockerfile_template_path != '':
             logging.info(f'Uses custom dockerfile template from {args.dockerfile_template_path}')
             with open(args.dockerfile_template_path, 'r') as f:
-                _dockerfile_template = Template(f.read())
+                custom_dockerfile_template = Template(f.read())
         else:
-            _dockerfile_template = dockerfile_template
+            custom_dockerfile_template = None
 
         create_operator(
             file_path=grid_wrapper_file_path,
             repository=args.repository,
             version=args.version,
-            dockerfile_template=_dockerfile_template,
+            custom_dockerfile_template=custom_dockerfile_template,
             additional_files=args.additional_files,
             log_level=args.log_level,
             test_mode=args.test_mode,

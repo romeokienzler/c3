@@ -33,8 +33,8 @@ gw_lock_file_suffix = os.environ.get('gw_lock_file_suffix', '.lock')
 gw_processed_file_suffix = os.environ.get('gw_lock_file_suffix', '.processed')
 # error file suffix
 gw_error_file_suffix = os.environ.get('gw_error_file_suffix', '.err')
-# timeout in seconds to remove lock file from struggling job (default 1 hour)
-gw_lock_timeout = int(os.environ.get('gw_lock_timeout', 3600))
+# timeout in seconds to remove lock file from struggling job (default 3 hours)
+gw_lock_timeout = int(os.environ.get('gw_lock_timeout', 10800))
 # ignore error files and rerun batches with errors
 gw_ignore_error_files = bool(os.environ.get('gw_ignore_error_files', False))
 
