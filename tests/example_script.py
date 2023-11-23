@@ -30,6 +30,8 @@ def main(*args):
     """
     _ = np.random.randn(5)
 
+    os.environ['test_output'] = 'test'
+
     print(args)
 
 

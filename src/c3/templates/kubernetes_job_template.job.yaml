@@ -8,7 +8,8 @@ spec:
       containers:
       - name: ${name}
         image: ${repository}/claimed-${name}:${version}
-        command: ["${command}","${working_dir}${target_code}"]
+        workingDir: ${working_dir}
+        command: ["${command}","${target_code}"]
         env:
 ${env_entries}
       restartPolicy: OnFailure

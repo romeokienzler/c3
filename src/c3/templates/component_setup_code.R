@@ -7,7 +7,7 @@ for (parameter in args) {
     print(parameter)
     key <- key_value[1]
     value <- key_value[2]
-    Sys.setenv(key = value)
+    eval(parse(text=paste0('Sys.setenv(',key,'="',value,'")')))
     } else {
     print(paste('Could not find key value pair for argument ', parameter))
     }

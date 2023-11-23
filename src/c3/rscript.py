@@ -15,11 +15,12 @@ class Rscript:
         self.name = os.path.basename(path)[:-2].replace('_', '-').lower()
         # TODO: Currently does not support a description
         self.description = self.name
-        self.envs = self._get_env_vars()
+        self.inputs = self._get_input_vars()
+        self.outputs = self._get_output_vars()
 
-    def _get_env_vars(self):
+    def _get_input_vars(self):
         cp = ContentParser()
-        env_names = cp.parse(self.path)['env_vars']
+        env_names = cp.parse(self.path)['inputs']
         return_value = dict()
         for env_name, default in env_names.items():
             comment_line = str()
@@ -45,6 +46,13 @@ class Rscript:
                     }
                     break
                 comment_line = line
+        return return_value
+
+    def _get_output_vars(self):
+        cp = ContentParser()
+        output_names = cp.parse(self.path)['outputs']
+        # TODO: Does not check for description
+        return_value = {name: {'description': 'output path'} for name in output_names}
         return return_value
 
     def get_requirements(self):
@@ -74,9 +82,7 @@ class Rscript:
         return self.description
 
     def get_inputs(self):
-        # return {key: value for (key, value) in self.envs.items() if not key.startswith('output_')}
-        return self.envs
+        return self.inputs
 
     def get_outputs(self):
-        # return {key: value for (key, value) in self.envs.items() if key.startswith('output_')}
-        return {}
+        return self.outputs

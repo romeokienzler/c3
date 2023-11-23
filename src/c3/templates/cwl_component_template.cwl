@@ -11,6 +11,5 @@ inputs:
       position: 1
       prefix: --component
 ${inputs}
-${outputs}
 
-outputs: []
+outputs: ${outputs}

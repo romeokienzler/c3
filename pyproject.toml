@@ -7,8 +7,9 @@ version_file = "src/c3/_version.py"
 
 [project]
 name = "claimed-c3"
-dynamic = ["version"]
-# version = "0.2.9"
+# dynamic = ["version"]
+# test pypi version:
+version = "0.2.15"
 authors = [
   { name="The CLAIMED authors", email="claimed-framework@proton.me"},
 ]

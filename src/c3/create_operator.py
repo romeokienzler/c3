@@ -36,18 +36,19 @@ def create_dockerfile(dockerfile_template, requirements, target_code, additional
 
 
 def create_kfp_component(name, description, repository, version, command, target_code, file_path, inputs, outputs):
-    def get_component_interface(parameters):
-        return_string = str()
-        for name, options in parameters.items():
-            return_string += f'- {{name: {name}, type: {options["type"]}, description: "{options["description"]}"'
-            if options['default'] is not None:
-                if not options["default"].startswith('"'):
-                    options["default"] = f'"{options["default"]}"'
-                return_string += f', default: {options["default"]}'
-            return_string += '}\n'
-        return return_string
-    inputs_list = get_component_interface(inputs)
-    outputs_list = get_component_interface(outputs)
+
+    inputs_list = str()
+    for name, options in inputs.items():
+        inputs_list += f'- {{name: {name}, type: {options["type"]}, description: "{options["description"]}"'
+        if options['default'] is not None:
+            if not options["default"].startswith('"'):
+                options["default"] = f'"{options["default"]}"'
+            inputs_list += f', default: {options["default"]}'
+        inputs_list += '}\n'
+
+    outputs_list = str()
+    for name, options in outputs.items():
+        outputs_list += f'- {{name: {name}, type: String, description: "{options["description"]}"}}\n'
 
     parameter_list = str()
     for index, key in enumerate(list(inputs.keys()) + list(outputs.keys())):
@@ -78,10 +79,10 @@ def create_kfp_component(name, description, repository, version, command, target
         text_file.write(yaml)
 
 
-def create_kubernetes_job(name, repository, version, target_code, command, working_dir, file_path, inputs, outputs):
+def create_kubernetes_job(name, repository, version, target_code, command, working_dir, file_path, inputs):
     # get environment entries
     env_entries = str()
-    for key in list(inputs.keys()) + list(outputs.keys()):
+    for key in list(inputs.keys()):
         env_entries += f"        - name: {key}\n          value: value_of_{key}\n"
     env_entries = env_entries.rstrip()
 
@@ -112,10 +113,13 @@ def create_cwl_component(name, repository, version, file_path, inputs, outputs):
         input_envs += (f"  {input}:\n    type: string\n    default: {options['default']}\n    "
                        f"inputBinding:\n      position: {i}\n      prefix: --{input}\n")
 
-    output_envs = '\n'
+    if len(outputs) == 0:
+        output_envs = '[]'
+    else:
+        output_envs = '\n'
     for output, options in outputs.items():
         i += 1
-        output_envs += (f"  {output}:\n    type: string\n    default: {options['default']}\n    "
+        output_envs += (f"  {output}:\n    type: string\n    "
                         f"inputBinding:\n      position: {i}\n      prefix: --{output}\n")
 
     cwl = cwl_component_template.substitute(
@@ -134,12 +138,10 @@ def create_cwl_component(name, repository, version, file_path, inputs, outputs):
         text_file.write(cwl)
 
 
-def print_claimed_command(name, repository, version, inputs, outputs):
+def print_claimed_command(name, repository, version, inputs):
     claimed_command = f"claimed --component {repository}/claimed-{name}:{version}"
     for input, options in inputs.items():
         claimed_command += f" --{input} {options['default']}"
-    for output, options in outputs.items():
-        claimed_command += f" --{output} {options['default']}"
     logging.info(f'Run operators locally with claimed-cli:\n{claimed_command}')
 
 
@@ -304,11 +306,11 @@ def create_operator(file_path: str,
     # Create application scripts
     create_kfp_component(name, description, repository, version, command, target_code, file_path, inputs, outputs)
 
-    create_kubernetes_job(name, repository, version, target_code, command, working_dir, file_path, inputs, outputs)
+    create_kubernetes_job(name, repository, version, target_code, command, working_dir, file_path, inputs)
 
     create_cwl_component(name, repository, version, file_path, inputs, outputs)
 
-    print_claimed_command(name, repository, version, inputs, outputs)
+    print_claimed_command(name, repository, version, inputs)
 
     # Remove temp files
     remove_temporary_files(file_path, target_code, additional_files_path)
