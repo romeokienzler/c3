@@ -354,6 +354,7 @@ def create_operator(file_path: str,
         )
     except Exception as err:
         remove_temporary_files(file_path, target_code)
+        logging.error('Docker build failed. Consider running C3 with `--log_level DEBUG` to see the docker build logs.')
         raise err
     logging.info('Successfully built image')
 
