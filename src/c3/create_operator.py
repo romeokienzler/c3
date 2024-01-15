@@ -19,6 +19,9 @@ CLAIMED_VERSION = 'V0.1'
 
 
 def create_dockerfile(dockerfile_template, requirements, target_code, additional_files_path, working_dir, command):
+    # Add missing home directory to the command `pip install -r ~/requirements.txt`
+    requirements = [r if '~/' in r else r.replace('-r ', '-r ~/') for r in requirements]
+    # TODO: add optional requirements.txt to additional files if missing and -r in requirements
     requirements_docker = list(map(lambda s: 'RUN ' + s, requirements))
     requirements_docker = '\n'.join(requirements_docker)
 
