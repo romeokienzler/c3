@@ -5,6 +5,8 @@ import logging
 import shutil
 import argparse
 import subprocess
+import glob
+import re
 from pathlib import Path
 from string import Template
 from typing import Optional
@@ -18,17 +20,31 @@ from c3.templates import (python_component_setup_code, r_component_setup_code,
 CLAIMED_VERSION = 'V0.1'
 
 
-def create_dockerfile(dockerfile_template, requirements, target_code, additional_files_path, working_dir, command):
-    # Add missing home directory to the command `pip install -r ~/requirements.txt`
-    requirements = [r if '~/' in r else r.replace('-r ', '-r ~/') for r in requirements]
-    # TODO: add optional requirements.txt to additional files if missing and -r in requirements
+def create_dockerfile(dockerfile_template, requirements, target_code, target_dir, additional_files, working_dir, command):
+    # Check for requirements file
+    for i in range(len(requirements)):
+        if '-r ' in requirements[i]:
+            r_file_search = re.search('-r ~?\/?([A-Za-z0-9\/]*\.txt)', requirements[i])
+            if len(r_file_search.groups()):
+                # Get file from regex
+                requirements_file = r_file_search.groups()[0]
+                if requirements_file not in additional_files and os.path.isfile(requirements_file):
+                    # Add missing requirements text file to additional files
+                    additional_files.append(r_file_search.groups()[0])
+            if '/' not in requirements[i]:
+                # Add missing home directory to the command `pip install -r ~/requirements.txt`
+                requirements[i] = requirements[i].replace('-r ', '-r ~/')
+
     requirements_docker = list(map(lambda s: 'RUN ' + s, requirements))
     requirements_docker = '\n'.join(requirements_docker)
+    additional_files_docker = list(map(lambda s: f"ADD {s} {working_dir}{s}", additional_files))
+    additional_files_docker = '\n'.join(additional_files_docker)
 
     docker_file = dockerfile_template.substitute(
         requirements_docker=requirements_docker,
         target_code=target_code,
-        additional_files_path=additional_files_path,
+        target_dir=target_dir,
+        additional_files_docker=additional_files_docker,
         working_dir=working_dir,
         command=os.path.basename(command),
     )
@@ -36,9 +52,10 @@ def create_dockerfile(dockerfile_template, requirements, target_code, additional
     logging.info('Create Dockerfile')
     with open("Dockerfile", "w") as text_file:
         text_file.write(docker_file)
+    logging.debug('Dockerfile:\n' + docker_file)
 
 
-def create_kfp_component(name, description, repository, version, command, target_code, file_path, inputs, outputs):
+def create_kfp_component(name, description, repository, version, command, target_code, target_dir, file_path, inputs, outputs):
 
     inputs_list = str()
     for name, options in inputs.items():
@@ -70,7 +87,10 @@ def create_kfp_component(name, description, repository, version, command, target
         version=version,
         inputs=inputs_list,
         outputs=outputs_list,
-        call=f'{os.path.basename(command)} ./{target_code} {parameter_list}',
+        command=os.path.basename(command),
+        target_dir=target_dir,
+        target_code=target_code,
+        parameter_list=parameter_list,
         parameter_values=parameter_values,
     )
 
@@ -82,7 +102,7 @@ def create_kfp_component(name, description, repository, version, command, target
         text_file.write(yaml)
 
 
-def create_kubernetes_job(name, repository, version, target_code, command, working_dir, file_path, inputs):
+def create_kubernetes_job(name, repository, version, target_code, target_dir, command, working_dir, file_path, inputs):
     # get environment entries
     env_entries = str()
     for key in list(inputs.keys()):
@@ -94,6 +114,7 @@ def create_kubernetes_job(name, repository, version, target_code, command, worki
         repository=repository,
         version=version,
         target_code=target_code,
+        target_dir=target_dir,
         env_entries=env_entries,
         command=command,
         working_dir=working_dir,
@@ -189,13 +210,13 @@ def print_claimed_command(name, repository, version, inputs):
     logging.info(f'Run operators locally with claimed-cli:\n{claimed_command}')
 
 
-def remove_temporary_files(file_path, target_code, additional_files_path):
+def remove_temporary_files(file_path, target_code):
     logging.info(f'Remove local files')
     # remove temporary files
     if file_path != target_code:
         os.remove(target_code)
-    os.remove('Dockerfile')
-    shutil.rmtree(additional_files_path, ignore_errors=True)
+    if os.path.isfile('Dockerfile'):
+        os.remove('Dockerfile')
 
 
 def create_operator(file_path: str,
@@ -222,20 +243,16 @@ def create_operator(file_path: str,
         working_dir = '/opt/app-root/src/'
 
     elif file_path.endswith('.py'):
-        target_code = file_path.split('/')[-1]
-        if file_path == target_code:
-            # use temp file for processing
-            target_code = 'claimed_' + target_code
+        # use temp file for processing
+        target_code = 'claimed_' + os.path.basename(file_path)
         # Copy file to current working directory
         shutil.copy(file_path, target_code)
         command = '/opt/app-root/bin/python'
         working_dir = '/opt/app-root/src/'
 
     elif file_path.lower().endswith('.r'):
-        target_code = file_path.split('/')[-1]
-        if file_path == target_code:
-            # use temp file for processing
-            target_code = 'claimed_' + target_code
+        # use temp file for processing
+        target_code = 'claimed_' + os.path.basename(file_path)
         # Copy file to current working directory
         shutil.copy(file_path, target_code)
         command = 'Rscript'
@@ -278,27 +295,41 @@ def create_operator(file_path: str,
     # Strip 'claimed-' from name of copied temp file
     if name.startswith('claimed-'):
         name = name[8:]
+    target_dir = os.path.dirname(file_path)
+    # Check that the main file is within the cwd
+    if '../' in target_dir:
+        raise PermissionError(f"Forbidden path outside the docker build context: {target_dir}. "
+                              f"Change the current working directory to include the file.")
+    elif target_dir != '':
+        target_dir += '/'
 
     logging.info('Operator name: ' + name)
     logging.info('Description:: ' + description)
     logging.info('Inputs: ' + str(inputs))
     logging.info('Outputs: ' + str(outputs))
     logging.info('Requirements: ' + str(requirements))
+    logging.debug(f'Target code: {target_code}')
+    logging.debug(f'Target directory: {target_dir}')
 
-    # copy all additional files to temporary folder
-    additional_files_path = 'additional_files_path'
-    while os.path.exists(additional_files_path):
-        # ensures using a new directory
-        additional_files_path += '_temp'
-    logging.debug(f'Create dir for additional files {additional_files_path}')
-    os.makedirs(additional_files_path)
-    for additional_file in additional_files:
-        assert os.path.isfile(additional_file), \
-            f"Could not find file at {additional_file}. Please provide only files as additional parameters."
-        shutil.copy(additional_file, additional_files_path)
-    logging.info(f'Selected additional files: {os.listdir(additional_files_path)}')
+    # Load all additional files
+    logging.debug('Looking for additional files:')
+    additional_files_found = []
+    for file_pattern in additional_files:
+        if '../' in file_pattern:
+            # Check that additional file are within the cwd
+            raise PermissionError(f"Forbidden path outside the docker build context: {file_pattern}. "
+                                  f"Change the current working directory to include all additional files.")
+        # Include files based on wildcards
+        files_found = glob.glob(file_pattern)
+        if len(files_found) == 0:
+            raise FileNotFoundError(f'No additional files for path {file_pattern}.')
+        additional_files_found.extend(files_found)
+        logging.debug(f'Searched for "{file_pattern}". Found {", ".join(files_found)}')
+    logging.info(f'Found {len(additional_files_found)} additional files and directories:\n'
+                 f'{", ".join(additional_files_found)}')
 
-    create_dockerfile(dockerfile_template, requirements, target_code, additional_files_path, working_dir, command)
+    create_dockerfile(dockerfile_template, requirements, target_code, target_dir, additional_files_found, working_dir,
+                      command)
 
     if version is None:
         # auto increase version based on registered images
@@ -323,7 +354,7 @@ def create_operator(file_path: str,
             stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
         )
     except Exception as err:
-        remove_temporary_files(file_path, target_code, additional_files_path)
+        remove_temporary_files(file_path, target_code)
         raise err
     logging.info('Successfully built image')
 
@@ -346,27 +377,28 @@ def create_operator(file_path: str,
             logging.info('Continue processing (test mode).')
             pass
         else:
-            remove_temporary_files(file_path, target_code, additional_files_path)
+            remove_temporary_files(file_path, target_code)
             raise err
 
     # Check for existing files and optionally modify them before overwriting
     try:
         check_existing_files(file_path, rename_files, overwrite_files)
     except Exception as err:
-        remove_temporary_files(file_path, target_code, additional_files_path)
+        remove_temporary_files(file_path, target_code)
         raise err
 
     # Create application scripts
-    create_kfp_component(name, description, repository, version, command, target_code, file_path, inputs, outputs)
+    create_kfp_component(name, description, repository, version, command, target_code, target_dir, file_path, inputs,
+                         outputs)
 
-    create_kubernetes_job(name, repository, version, target_code, command, working_dir, file_path, inputs)
+    create_kubernetes_job(name, repository, version, target_code, target_dir, command, working_dir, file_path, inputs)
 
     create_cwl_component(name, repository, version, file_path, inputs, outputs)
 
     print_claimed_command(name, repository, version, inputs)
 
     # Remove temp files
-    remove_temporary_files(file_path, target_code, additional_files_path)
+    remove_temporary_files(file_path, target_code)
 
 
 def main():

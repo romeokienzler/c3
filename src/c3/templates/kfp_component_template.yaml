@@ -14,5 +14,5 @@ implementation:
         - sh
         - -ec
         - |
-          ${call}
+          ${command} ./${target_dir}${target_code} ${parameter_list}
 ${parameter_values}
