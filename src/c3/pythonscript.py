@@ -55,8 +55,11 @@ class Pythonscript:
     def _get_output_vars(self):
         cp = ContentParser()
         output_names = cp.parse(self.path)['outputs']
-        # TODO: Does not check for description
-        return_value = {name: {'description': 'output path'} for name in output_names}
+        # TODO: Does not check for description code
+        return_value = {name: {
+            'description': f'Output path for {name}',
+            'type': 'String',
+        } for name in output_names}
         return return_value
 
     def get_requirements(self):
