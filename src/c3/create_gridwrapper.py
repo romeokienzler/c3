@@ -150,6 +150,9 @@ def main():
                         help='Container registry address, e.g. docker.io/<username>')
     parser.add_argument('-v', '--version', type=str, default=None,
                         help='Container image version. Auto-increases the version number if not provided (default 0.1)')
+    parser.add_argument('--rename', type=str, nargs='?', default=None, const='',
+                        help='Rename existing yaml files (argument without value leads to modified_{file name})')
+    parser.add_argument('--overwrite', action='store_true', help='Overwrite existing yaml files')
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
@@ -194,6 +197,9 @@ def main():
             additional_files=args.ADDITIONAL_FILES,
             log_level=args.log_level,
             test_mode=args.test_mode,
+            no_cache=args.no_cache,
+            overwrite_files=args.overwrite,
+            rename_files=args.rename,
         )
 
         logging.info('Remove local component file')

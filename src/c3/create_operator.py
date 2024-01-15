@@ -138,6 +138,47 @@ def create_cwl_component(name, repository, version, file_path, inputs, outputs):
         text_file.write(cwl)
 
 
+def check_existing_files(file_path, rename_files, overwrite_files):
+    if rename_files is None and overwrite_files:
+        # Overwrite potential files
+        return
+
+    target_job_yaml_path = Path(file_path).with_suffix('.job.yaml')
+
+    # Check for existing job yaml
+    if target_job_yaml_path.is_file():
+        if rename_files is None:
+            # Ask user
+            rename_files = input(f'Found modified job.yaml at {target_job_yaml_path}. '                      
+                                 f'C3 will rename the modified file to modified_{target_job_yaml_path.name}.\n'
+                                 f'ENTER to continue, write N for overwrite, '
+                                 f'or provide a custom name for the modified file.')
+        if rename_files.lower() == 'n':
+            # Overwrite file
+            return
+        elif rename_files.strip() == '':
+            # Default file name
+            new_file_name = 'modified_' + Path(file_path).name
+        else:
+            # Rename to custom name
+            new_file_name = rename_files
+
+        modified_path = (target_job_yaml_path.parent / new_file_name).with_suffix('.job.yaml')
+        # Check if modified path exists and potentially overwrite
+        if modified_path.exists():
+            if overwrite_files:
+                logging.info(f'Overwriting modified path {modified_path}.')
+            else:
+                overwrite = input(f'Modified path {modified_path} already exists. ENTER to overwrite the file.')
+                if overwrite != '':
+                    logging.error(f'Abort creating operator. Please rename file manually and rerun the script.')
+                    raise FileExistsError
+
+        os.rename(str(target_job_yaml_path), str(modified_path))
+        logging.info(f'Renamed Kubernetes job file to {modified_path}')
+    # TODO: Should we check other files too? Currently assuming no modification for yaml and cwl.
+
+
 def print_claimed_command(name, repository, version, inputs):
     claimed_command = f"claimed --component {repository}/claimed-{name}:{version}"
     for input, options in inputs.items():
@@ -162,6 +203,8 @@ def create_operator(file_path: str,
                     log_level='INFO',
                     test_mode=False,
                     no_cache=False,
+                    rename_files=None,
+                    overwrite_files=False,
                     ):
     logging.info('Parameters: ')
     logging.info('file_path: ' + file_path)
@@ -303,6 +346,13 @@ def create_operator(file_path: str,
             remove_temporary_files(file_path, target_code, additional_files_path)
             raise err
 
+    # Check for existing files and optionally modify them before overwriting
+    try:
+        check_existing_files(file_path, rename_files, overwrite_files)
+    except Exception as err:
+        remove_temporary_files(file_path, target_code, additional_files_path)
+        raise err
+
     # Create application scripts
     create_kfp_component(name, description, repository, version, command, target_code, file_path, inputs, outputs)
 
@@ -326,6 +376,9 @@ def main():
                         help='Container registry address, e.g. docker.io/<username>')
     parser.add_argument('-v', '--version', type=str, default=None,
                         help='Container image version. Auto-increases the version number if not provided (default 0.1)')
+    parser.add_argument('--rename', type=str, nargs='?', default=None, const='',
+                        help='Rename existing yaml files (argument without value leads to modified_{file name})')
+    parser.add_argument('--overwrite', action='store_true', help='Overwrite existing yaml files')
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
@@ -359,6 +412,8 @@ def main():
         log_level=args.log_level,
         test_mode=args.test_mode,
         no_cache=args.no_cache,
+        overwrite_files=args.overwrite,
+        rename_files=args.rename,
     )
 
 
