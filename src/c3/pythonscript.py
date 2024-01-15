@@ -73,11 +73,11 @@ class Pythonscript:
                 requirements.append(line.replace('#', '').strip())
 
         # Add pip install
-        pattern = r"([ ]*pip[ ]*install[ ]*)(.[^#]*)"
+        pattern = r"^[# ]*(pip[ ]*install)[ ]*(.[^#]*)"
         for line in self.script.split('\n'):
             result = re.findall(pattern, line)
             if len(result) == 1:
-                requirements.append((result[0][0].strip() + ' ' + result[0][1].strip()))
+                requirements.append((result[0][0] + ' ' + result[0][1].strip()))
         return requirements
 
     def get_name(self):

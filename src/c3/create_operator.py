@@ -173,14 +173,13 @@ def check_existing_files(file_path, rename_files, overwrite_files):
     if target_job_yaml_path.is_file():
         if rename_files is None:
             # Ask user
-            rename_files = input(f'Found modified job.yaml at {target_job_yaml_path}. '                      
-                                 f'C3 will rename the modified file to modified_{target_job_yaml_path.name}.\n'
-                                 f'ENTER to continue, write N for overwrite, '
-                                 f'or provide a custom name for the modified file.')
-        if rename_files.lower() == 'n':
+            rename_files = input(f'\nFound a existing Kubernetes job file at {target_job_yaml_path}.\n'                      
+                                 f'ENTER to overwrite the file, write Y to rename the file to '
+                                 f'modified_{target_job_yaml_path.name}, or provide a custom name:\n')
+        if rename_files.strip() == '':
             # Overwrite file
             return
-        elif rename_files.strip() == '':
+        elif rename_files.lower() == 'y':
             # Default file name
             new_file_name = 'modified_' + Path(file_path).name
         else:
@@ -325,7 +324,7 @@ def create_operator(file_path: str,
             raise FileNotFoundError(f'No additional files for path {file_pattern}.')
         additional_files_found.extend(files_found)
         logging.debug(f'Searched for "{file_pattern}". Found {", ".join(files_found)}')
-    logging.info(f'Found {len(additional_files_found)} additional files and directories:\n'
+    logging.info(f'Found {len(additional_files_found)} additional files and directories\n'
                  f'{", ".join(additional_files_found)}')
 
     create_dockerfile(dockerfile_template, requirements, target_code, target_dir, additional_files_found, working_dir,
