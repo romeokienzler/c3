@@ -55,8 +55,11 @@ class Pythonscript:
     def _get_output_vars(self):
         cp = ContentParser()
         output_names = cp.parse(self.path)['outputs']
-        # TODO: Does not check for description
-        return_value = {name: {'description': 'output path'} for name in output_names}
+        # TODO: Does not check for description code
+        return_value = {name: {
+            'description': f'Output path for {name}',
+            'type': 'String',
+        } for name in output_names}
         return return_value
 
     def get_requirements(self):
@@ -70,11 +73,11 @@ class Pythonscript:
                 requirements.append(line.replace('#', '').strip())
 
         # Add pip install
-        pattern = r"([ ]*pip[ ]*install[ ]*)(.[^#]*)"
+        pattern = r"^[# ]*(pip[ ]*install)[ ]*(.[^#]*)"
         for line in self.script.split('\n'):
             result = re.findall(pattern, line)
             if len(result) == 1:
-                requirements.append((result[0][0].strip() + ' ' + result[0][1].strip()))
+                requirements.append((result[0][0] + ' ' + result[0][1].strip()))
         return requirements
 
     def get_name(self):

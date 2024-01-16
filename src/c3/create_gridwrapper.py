@@ -53,20 +53,22 @@ def get_component_elements(file_path):
     outputs = py.get_outputs()
     dependencies = py.get_requirements()
 
-    # combine inputs and outputs
-    interface_values = {}
-    interface_values.update(inputs)
-    interface_values.update(outputs)
-
     # combine dependencies list
     dependencies = '\n# '.join(dependencies)
 
-    # generate interface code from inputs and outputs
+    # generate interface code from inputs
     interface = ''
     type_to_func = {'String': '', 'Boolean': 'bool', 'Integer': 'int', 'Float': 'float'}
-    for variable, d in interface_values.items():
+    for variable, d in inputs.items():
         interface += f"# {d['description']}\n"
+        if d['type'] == 'String' and d['default'] is not None and d['default'][0] not in '\'\"':
+            # Add quotation marks
+            d['default'] = "'" + d['default'] + "'"
         interface += f"component_{variable} = {type_to_func[d['type']]}(os.getenv('{variable}', {d['default']}))\n"
+
+    # TODO: Implement output interface
+    if len(outputs) > 0:
+        logging.warning('Found output paths in the component code which is currently not supported.')
 
     # generate kwargs for the subprocesses
     process_inputs = ', '.join([f'{i}=component_{i}' for i in inputs.keys()])
@@ -108,7 +110,7 @@ def edit_component_code(file_path):
     return target_file
 
 
-def apply_grid_wrapper(file_path, component_process, cos, *args, **kwargs):
+def apply_grid_wrapper(file_path, component_process, cos):
     assert file_path.endswith('.py') or file_path.endswith('.ipynb'), \
         "Please provide a component file path to a python script or notebook."
 
@@ -136,9 +138,9 @@ def apply_grid_wrapper(file_path, component_process, cos, *args, **kwargs):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('file_path', type=str,
+    parser.add_argument('FILE_PATH', type=str,
                         help='Path to python script or notebook')
-    parser.add_argument('additional_files', type=str, nargs='*',
+    parser.add_argument('ADDITIONAL_FILES', type=str, nargs='*',
                         help='List of paths to additional files to include in the container image')
     parser.add_argument('-p', '--component_process', type=str, required=True,
                         help='Name of the component sub process that is executed for each batch.')
@@ -148,10 +150,14 @@ def main():
                         help='Container registry address, e.g. docker.io/<username>')
     parser.add_argument('-v', '--version', type=str, default=None,
                         help='Container image version. Auto-increases the version number if not provided (default 0.1)')
+    parser.add_argument('--rename', type=str, nargs='?', default=None, const='',
+                        help='Rename existing yaml files (argument without value leads to modified_{file name})')
+    parser.add_argument('--overwrite', action='store_true', help='Overwrite existing yaml files')
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
     parser.add_argument('--test_mode', action='store_true')
+    parser.add_argument('--no-cache', action='store_true')
     args = parser.parse_args()
 
     # Init logging
@@ -163,13 +169,17 @@ def main():
     handler.setLevel(args.log_level)
     root.addHandler(handler)
 
-    grid_wrapper_file_path, component_path = apply_grid_wrapper(**vars(args))
+    grid_wrapper_file_path, component_path = apply_grid_wrapper(
+        file_path=args.FILE_PATH,
+        component_process=args.component_process,
+        cos=args.cos,
+    )
 
     if args.repository is not None:
         logging.info('Generate CLAIMED operator for grid wrapper')
 
         # Add component path and init file path to additional_files
-        args.additional_files.append(component_path)
+        args.ADDITIONAL_FILES.append(component_path)
 
         # Update dockerfile template if specified
         if args.dockerfile_template_path != '':
@@ -184,9 +194,12 @@ def main():
             repository=args.repository,
             version=args.version,
             custom_dockerfile_template=custom_dockerfile_template,
-            additional_files=args.additional_files,
+            additional_files=args.ADDITIONAL_FILES,
             log_level=args.log_level,
             test_mode=args.test_mode,
+            no_cache=args.no_cache,
+            overwrite_files=args.overwrite,
+            rename_files=args.rename,
         )
 
         logging.info('Remove local component file')

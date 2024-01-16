@@ -165,7 +165,7 @@ class ContentParser(LoggingConfigurable):
                         if key == "inputs":
                             default_value = match.group(2)
                             if default_value:
-                                # The default value match can end with a additional ', ", or ) which is removed
+                                # The default value match can end with an additional ', ", or ) which is removed
                                 default_value = re.sub(r"['\")]?$", '', default_value, count=1)
                             properties[key][match.group(1)] = default_value
                         else:
