@@ -235,12 +235,13 @@ def create_operator(file_path: str,
                     rename_files=None,
                     overwrite_files=False,
                     skip_logging=False,
+                    keep_generated_files=False,
                     ):
     logging.info('Parameters: ')
     logging.info('file_path: ' + file_path)
     logging.info('repository: ' + str(repository))
     logging.info('version: ' + str(version))
-    logging.info('additional_files: ' + str(additional_files))
+    logging.info('additional_files: ' + '; '.join(additional_files))
 
     if file_path.endswith('.py'):
         # use temp file for processing
@@ -319,10 +320,10 @@ def create_operator(file_path: str,
         target_dir += '/'
 
     logging.info('Operator name: ' + name)
-    logging.info('Description:: ' + description)
-    logging.info('Inputs: ' + str(inputs))
-    logging.info('Outputs: ' + str(outputs))
-    logging.info('Requirements: ' + str(requirements))
+    logging.info('Description: ' + description)
+    logging.info('Inputs:\n' + ('\n'.join([f'{k}: {v}' for k, v in inputs.items()])))
+    logging.info('Outputs:\n' + ('\n'.join([f'{k}: {v}' for k, v in outputs.items()])))
+    logging.info('Requirements: ' + '; '.join(requirements))
     logging.debug(f'Target code: {target_code}')
     logging.debug(f'Target directory: {target_dir}')
 
@@ -375,8 +376,9 @@ def create_operator(file_path: str,
                 stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
             )
     except Exception as err:
-        remove_temporary_files(file_path, target_code)
         logging.error('Docker build failed. Consider running C3 with `--log_level DEBUG` to see the docker build logs.')
+        if not keep_generated_files:
+            remove_temporary_files(file_path, target_code)
         raise err
     logging.info(f'Successfully built image claimed-{name}:{version}')
 
@@ -398,14 +400,16 @@ def create_operator(file_path: str,
         except Exception as err:
             logging.error(f'Could not push images to namespace {repository}. '
                           f'Please check if docker is logged in or select a namespace with access.')
-            remove_temporary_files(file_path, target_code)
+            if not keep_generated_files:
+                remove_temporary_files(file_path, target_code)
             raise err
 
     # Check for existing files and optionally modify them before overwriting
     try:
         check_existing_files(file_path, rename_files, overwrite_files)
     except Exception as err:
-        remove_temporary_files(file_path, target_code)
+        if not keep_generated_files:
+            remove_temporary_files(file_path, target_code)
         raise err
 
     # Create application scripts
@@ -419,7 +423,8 @@ def create_operator(file_path: str,
     print_claimed_command(name, repository, version, inputs)
 
     # Remove temp files
-    remove_temporary_files(file_path, target_code)
+    if not keep_generated_files:
+        remove_temporary_files(file_path, target_code)
 
 
 def main():
@@ -443,6 +448,8 @@ def main():
     parser.add_argument('--no-cache', action='store_true', help='Not using cache for docker build.')
     parser.add_argument('--skip-logging', action='store_true',
                         help='Exclude logging code from component setup code')
+    parser.add_argument('--keep-generated-files', action='store_true',
+                        help='Do not delete temporary generated files.')
     args = parser.parse_args()
 
     # Init logging
@@ -474,6 +481,7 @@ def main():
         overwrite_files=args.overwrite,
         rename_files=args.rename,
         skip_logging=args.skip_logging,
+        keep_generated_files=args.keep_generated_files,
     )
 
 

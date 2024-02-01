@@ -107,6 +107,10 @@ def get_image_version(repository, name):
     Get current version of the image from the registry and increase the version by 1.
     Defaults to 0.1 if no image is found in the registry.
     """
+    if repository is None:
+        logging.debug('Using 0.1 as local version.')
+        return '0.1'
+
     logging.debug(f'Get image version from registry.')
     if 'docker.io' in repository:
         logging.debug('Get image tags from docker.')
