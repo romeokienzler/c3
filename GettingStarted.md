@@ -516,13 +516,15 @@ c3_create_operator --repository "<registry>/<namespace>" "<my-operator-script>.p
 
 You need to provide the repository with `--repository` or `-r`. You can specify the version of the container image (default: "0.1") with `--version` or `-v`.
 The first positional argument is the path to the python script or the ipython notebook. Optional, you can define additional files that are copied to the container images in the following positinal arguments. You can use wildcards for additional files. E.g., `*` would copy all files in the current directory to the container image. (Hidden files and directories must be specified. Be aware of `data/` folders and others before including all files.)
+Note,that the docker build messages are suppressed by default. If you want to display the docker logs, you can add `--log_level DEBUG`.
 
 View all arguments by running:
 ```sh
 c3_create_operator --help
 ```
 
-C3 generates the container image that is pushed to the registry, a `<my-operator-script>.yaml` file for KubeFlow, a `<my-operator-script>.job.yaml` for Kubernetes, and a `<my-operator-script>.cwl` file for CWL. 
+C3 generates the container image that is pushed to the registry, a `<my-operator-script>.yaml` file for KubeFlow, a `<my-operator-script>.job.yaml` for Kubernetes, and a `<my-operator-script>.cwl` file for CWL.
+
 
 ---
 
