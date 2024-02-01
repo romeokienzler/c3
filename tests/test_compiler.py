@@ -121,7 +121,7 @@ def test_create_operator(
         args: List,
 ):
     subprocess.run(['python', '../src/c3/create_operator.py', file_path, *args, '-r', repository,
-                    '--test_mode', '-v', 'test', '--log_level', 'DEBUG'],
+                    '--test_mode', '-v', 'test', '--log_level', 'DEBUG', '--overwrite'],
                    check=True)
 
     file = Path(file_path)

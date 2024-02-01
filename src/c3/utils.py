@@ -32,7 +32,7 @@ def convert_notebook(path):
     # add import get_ipython
     code = 'from IPython import get_ipython \n' + code
 
-    py_path = path.split('/')[-1].replace('.ipynb', '.py')
+    py_path = path.split('/')[-1].replace('.ipynb', '.py').replace('-', '_')
 
     assert not os.path.exists(py_path), f"File {py_path} already exist. Cannot convert notebook."
     with open(py_path, 'w') as py_file:
