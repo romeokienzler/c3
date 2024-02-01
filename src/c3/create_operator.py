@@ -230,7 +230,7 @@ def create_operator(file_path: str,
                     custom_dockerfile_template: Optional[Template],
                     additional_files: str = None,
                     log_level='INFO',
-                    test_mode=False,
+                    local_mode=False,
                     no_cache=False,
                     rename_files=None,
                     overwrite_files=False,
@@ -238,7 +238,7 @@ def create_operator(file_path: str,
                     ):
     logging.info('Parameters: ')
     logging.info('file_path: ' + file_path)
-    logging.info('repository: ' + repository)
+    logging.info('repository: ' + str(repository))
     logging.info('version: ' + str(version))
     logging.info('additional_files: ' + str(additional_files))
 
@@ -350,6 +350,12 @@ def create_operator(file_path: str,
         # auto increase version based on registered images
         version = get_image_version(repository, name)
 
+    if repository is None:
+        if not local_mode:
+            logging.warning('No repository provided. The container image is only saved locally. Add `-r <repository>` '
+                            'to push the image to a container registry or run `--local_mode` to suppress this warning.')
+        local_mode = True
+
     logging.info(f'Building container image claimed-{name}:{version}')
     try:
         # Run docker build
@@ -357,42 +363,41 @@ def create_operator(file_path: str,
             f"docker build --platform linux/amd64 -t claimed-{name}:{version} . {'--no-cache' if no_cache else ''}",
             stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True
         )
-
-        # Run docker tag
-        logging.debug(f'Tagging images with "latest" and "{version}"')
-        subprocess.run(
-            f"docker tag claimed-{name}:{version} {repository}/claimed-{name}:{version}",
-            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
-        )
-        subprocess.run(
-            f"docker tag claimed-{name}:{version} {repository}/claimed-{name}:latest",
-            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
-        )
+        if repository is not None:
+            # Run docker tag
+            logging.debug(f'Tagging images with "latest" and "{version}"')
+            subprocess.run(
+                f"docker tag claimed-{name}:{version} {repository}/claimed-{name}:{version}",
+                stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
+            )
+            subprocess.run(
+                f"docker tag claimed-{name}:{version} {repository}/claimed-{name}:latest",
+                stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
+            )
     except Exception as err:
         remove_temporary_files(file_path, target_code)
         logging.error('Docker build failed. Consider running C3 with `--log_level DEBUG` to see the docker build logs.')
         raise err
-    logging.info('Successfully built image')
+    logging.info(f'Successfully built image claimed-{name}:{version}')
 
-    logging.info(f'Pushing images to registry {repository}')
-    try:
-        # Run docker push
-        subprocess.run(
-            f"docker push {repository}/claimed-{name}:latest",
-            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
-        )
-        subprocess.run(
-            f"docker push {repository}/claimed-{name}:{version}",
-            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
-        )
-        logging.info('Successfully pushed image to registry')
-    except Exception as err:
-        logging.error(f'Could not push images to namespace {repository}. '
-                      f'Please check if docker is logged in or select a namespace with access.')
-        if test_mode:
-            logging.info('Continue processing (test mode).')
-            pass
-        else:
+    if local_mode:
+        logging.info(f'No repository provided, skip docker push.')
+    else:
+        logging.info(f'Pushing images to registry {repository}')
+        try:
+            # Run docker push
+            subprocess.run(
+                f"docker push {repository}/claimed-{name}:latest",
+                stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
+            )
+            subprocess.run(
+                f"docker push {repository}/claimed-{name}:{version}",
+                stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
+            )
+            logging.info('Successfully pushed image to registry')
+        except Exception as err:
+            logging.error(f'Could not push images to namespace {repository}. '
+                          f'Please check if docker is logged in or select a namespace with access.')
             remove_temporary_files(file_path, target_code)
             raise err
 
@@ -423,7 +428,7 @@ def main():
                         help='Path to python script or notebook')
     parser.add_argument('ADDITIONAL_FILES', type=str, nargs='*',
                         help='Paths to additional files to include in the container image')
-    parser.add_argument('-r', '--repository', type=str, required=True,
+    parser.add_argument('-r', '--repository', type=str, default=None,
                         help='Container registry address, e.g. docker.io/<username>')
     parser.add_argument('-v', '--version', type=str, default=None,
                         help='Container image version. Auto-increases the version number if not provided (default 0.1)')
@@ -433,7 +438,7 @@ def main():
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
-    parser.add_argument('--test_mode', action='store_true',
+    parser.add_argument('--local_mode', action='store_true',
                         help='Continue processing after docker errors.')
     parser.add_argument('--no-cache', action='store_true', help='Not using cache for docker build.')
     parser.add_argument('--skip-logging', action='store_true',
@@ -464,7 +469,7 @@ def main():
         custom_dockerfile_template=custom_dockerfile_template,
         additional_files=args.ADDITIONAL_FILES,
         log_level=args.log_level,
-        test_mode=args.test_mode,
+        local_mode=args.local_mode,
         no_cache=args.no_cache,
         overwrite_files=args.overwrite,
         rename_files=args.rename,

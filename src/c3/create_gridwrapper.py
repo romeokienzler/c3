@@ -158,7 +158,7 @@ def main():
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
-    parser.add_argument('--test_mode', action='store_true',
+    parser.add_argument('--local_mode', action='store_true',
                         help='Continue processing after docker errors.')
     parser.add_argument('--no-cache', action='store_true', help='Not using cache for docker build.')
     parser.add_argument('--skip-logging', action='store_true',
@@ -180,36 +180,35 @@ def main():
         cos=args.cos,
     )
 
-    if args.repository is not None:
-        logging.info('Generate CLAIMED operator for grid wrapper')
+    logging.info('Generate CLAIMED operator for grid wrapper')
 
-        # Add component path and init file path to additional_files
-        args.ADDITIONAL_FILES.append(component_path)
+    # Add component path and init file path to additional_files
+    args.ADDITIONAL_FILES.append(component_path)
 
-        # Update dockerfile template if specified
-        if args.dockerfile_template_path != '':
-            logging.info(f'Uses custom dockerfile template from {args.dockerfile_template_path}')
-            with open(args.dockerfile_template_path, 'r') as f:
-                custom_dockerfile_template = Template(f.read())
-        else:
-            custom_dockerfile_template = None
+    # Update dockerfile template if specified
+    if args.dockerfile_template_path != '':
+        logging.info(f'Uses custom dockerfile template from {args.dockerfile_template_path}')
+        with open(args.dockerfile_template_path, 'r') as f:
+            custom_dockerfile_template = Template(f.read())
+    else:
+        custom_dockerfile_template = None
 
-        create_operator(
-            file_path=grid_wrapper_file_path,
-            repository=args.repository,
-            version=args.version,
-            custom_dockerfile_template=custom_dockerfile_template,
-            additional_files=args.ADDITIONAL_FILES,
-            log_level=args.log_level,
-            test_mode=args.test_mode,
-            no_cache=args.no_cache,
-            overwrite_files=args.overwrite,
-            rename_files=args.rename,
-            skip_logging=args.skip_logging,
-        )
+    create_operator(
+        file_path=grid_wrapper_file_path,
+        repository=args.repository,
+        version=args.version,
+        custom_dockerfile_template=custom_dockerfile_template,
+        additional_files=args.ADDITIONAL_FILES,
+        log_level=args.log_level,
+        local_mode=args.local_mode,
+        no_cache=args.no_cache,
+        overwrite_files=args.overwrite,
+        rename_files=args.rename,
+        skip_logging=args.skip_logging,
+    )
 
-        logging.info('Remove local component file')
-        os.remove(component_path)
+    logging.info('Remove local component file')
+    os.remove(component_path)
 
 
 if __name__ == '__main__':
