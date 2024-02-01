@@ -7,7 +7,7 @@ from string import Template
 from c3.pythonscript import Pythonscript
 from c3.utils import convert_notebook
 from c3.create_operator import create_operator
-from c3.templates import grid_wrapper_template, cos_grid_wrapper_template, gw_component_setup_code
+from c3.templates import grid_wrapper_template, cos_grid_wrapper_template, component_setup_code_wo_logging
 
 
 def wrap_component(component_path,
@@ -88,14 +88,14 @@ def edit_component_code(file_path):
         file_name = os.path.basename(file_path)
     else:
         # write edited code to different file
-        target_file = os.path.join(os.path.dirname(file_path), 'component_' + file_name)
+        target_file = os.path.join(os.path.dirname(file_path), 'component_' + file_name.replace('-', '_'))
 
     target_file_name = os.path.basename(target_file)
 
     with open(file_path, 'r') as f:
         script = f.read()
     # Add code for logging and cli parameters to the beginning of the script
-    script = gw_component_setup_code + script
+    script = component_setup_code_wo_logging + script
     # replace old filename with new file name
     script = script.replace(file_name, target_file_name)
     with open(target_file, 'w') as f:
@@ -156,8 +156,11 @@ def main():
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
-    parser.add_argument('--test_mode', action='store_true')
-    parser.add_argument('--no-cache', action='store_true')
+    parser.add_argument('--test_mode', action='store_true',
+                        help='Continue processing after docker errors.')
+    parser.add_argument('--no-cache', action='store_true', help='Not using cache for docker build.')
+    parser.add_argument('--skip-logging', action='store_true',
+                        help='Exclude logging code from component setup code')
     args = parser.parse_args()
 
     # Init logging
@@ -200,6 +203,7 @@ def main():
             no_cache=args.no_cache,
             overwrite_files=args.overwrite,
             rename_files=args.rename,
+            skip_logging=args.skip_logging,
         )
 
         logging.info('Remove local component file')

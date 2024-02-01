@@ -13,7 +13,7 @@ from typing import Optional
 from c3.pythonscript import Pythonscript
 from c3.rscript import Rscript
 from c3.utils import convert_notebook, get_image_version
-from c3.templates import (python_component_setup_code, r_component_setup_code,
+from c3.templates import (python_component_setup_code, component_setup_code_wo_logging, r_component_setup_code,
                           python_dockerfile_template, r_dockerfile_template,
                           kfp_component_template, kubernetes_job_template, cwl_component_template)
 
@@ -228,6 +228,7 @@ def create_operator(file_path: str,
                     no_cache=False,
                     rename_files=None,
                     overwrite_files=False,
+                    skip_logging=False,
                     ):
     logging.info('Parameters: ')
     logging.info('file_path: ' + file_path)
@@ -263,7 +264,10 @@ def create_operator(file_path: str,
         # Add code for logging and cli parameters to the beginning of the script
         with open(target_code, 'r') as f:
             script = f.read()
-        script = python_component_setup_code + script
+        if skip_logging:
+            script = component_setup_code_wo_logging + script
+        else:
+            script = python_component_setup_code + script
         with open(target_code, 'w') as f:
             f.write(script)
 
@@ -417,8 +421,11 @@ def main():
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
-    parser.add_argument('--test_mode', action='store_true')
-    parser.add_argument('--no-cache', action='store_true')
+    parser.add_argument('--test_mode', action='store_true',
+                        help='Continue processing after docker errors.')
+    parser.add_argument('--no-cache', action='store_true', help='Not using cache for docker build.')
+    parser.add_argument('--skip-logging', action='store_true',
+                        help='Exclude logging code from component setup code')
     args = parser.parse_args()
 
     # Init logging
@@ -449,6 +456,7 @@ def main():
         no_cache=args.no_cache,
         overwrite_files=args.overwrite,
         rename_files=args.rename,
+        skip_logging=args.skip_logging,
     )
 
 
