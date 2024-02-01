@@ -79,7 +79,7 @@ def get_component_elements(file_path):
 
 
 # Adding code
-def edit_component_code(file_path):
+def edit_component_code(file_path, component_process):
     file_name = os.path.basename(file_path)
     if file_path.endswith('.ipynb'):
         logging.info('Convert notebook to python script')
@@ -94,6 +94,8 @@ def edit_component_code(file_path):
 
     with open(file_path, 'r') as f:
         script = f.read()
+    assert component_process in script, (f'Did not find the grid process {component_process} in the script. '
+                                         f'Please provide the grid process in the arguments `-p <grid_process>`.')
     # Add code for logging and cli parameters to the beginning of the script
     script = component_setup_code_wo_logging + script
     # replace old filename with new file name
@@ -114,7 +116,7 @@ def apply_grid_wrapper(file_path, component_process, cos):
     assert file_path.endswith('.py') or file_path.endswith('.ipynb'), \
         "Please provide a component file path to a python script or notebook."
 
-    file_path = edit_component_code(file_path)
+    file_path = edit_component_code(file_path, component_process)
 
     description, interface, inputs, dependencies = get_component_elements(file_path)
 
@@ -142,7 +144,7 @@ def main():
                         help='Path to python script or notebook')
     parser.add_argument('ADDITIONAL_FILES', type=str, nargs='*',
                         help='List of paths to additional files to include in the container image')
-    parser.add_argument('-p', '--component_process', type=str, required=True,
+    parser.add_argument('-p', '--component_process', type=str, default='grid_process',
                         help='Name of the component sub process that is executed for each batch.')
     parser.add_argument('--cos', action=argparse.BooleanOptionalAction, default=False,
                         help='Creates a grid wrapper for processing COS files')
