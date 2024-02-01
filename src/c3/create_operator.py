@@ -7,10 +7,12 @@ import argparse
 import subprocess
 import glob
 import re
+import json
 from pathlib import Path
 from string import Template
 from typing import Optional
 from c3.pythonscript import Pythonscript
+from c3.notebook import Notebook
 from c3.rscript import Rscript
 from c3.utils import convert_notebook, get_image_version
 from c3.templates import (python_component_setup_code, component_setup_code_wo_logging, r_component_setup_code,
@@ -240,31 +242,11 @@ def create_operator(file_path: str,
     logging.info('version: ' + str(version))
     logging.info('additional_files: ' + str(additional_files))
 
-    if file_path.endswith('.ipynb'):
-        logging.info('Convert notebook to python script')
-        target_code = convert_notebook(file_path)
-        command = '/opt/app-root/bin/ipython'
-        working_dir = '/opt/app-root/src/'
-
-    elif file_path.endswith('.py'):
+    if file_path.endswith('.py'):
         # use temp file for processing
         target_code = 'claimed_' + os.path.basename(file_path)
         # Copy file to current working directory
         shutil.copy(file_path, target_code)
-        command = '/opt/app-root/bin/python'
-        working_dir = '/opt/app-root/src/'
-
-    elif file_path.lower().endswith('.r'):
-        # use temp file for processing
-        target_code = 'claimed_' + os.path.basename(file_path)
-        # Copy file to current working directory
-        shutil.copy(file_path, target_code)
-        command = 'Rscript'
-        working_dir = '/home/docker/'
-    else:
-        raise NotImplementedError('Please provide a file_path to a jupyter notebook, python script, or R script.')
-
-    if target_code.endswith('.py'):
         # Add code for logging and cli parameters to the beginning of the script
         with open(target_code, 'r') as f:
             script = f.read()
@@ -274,12 +256,36 @@ def create_operator(file_path: str,
             script = python_component_setup_code + script
         with open(target_code, 'w') as f:
             f.write(script)
-
         # getting parameter from the script
         script_data = Pythonscript(target_code)
         dockerfile_template = custom_dockerfile_template or python_dockerfile_template
+        command = '/opt/app-root/bin/python'
+        working_dir = '/opt/app-root/src/'
 
-    elif target_code.lower().endswith('.r'):
+    elif file_path.endswith('.ipynb'):
+        # use temp file for processing
+        target_code = 'claimed_' + os.path.basename(file_path)
+        # Copy file to current working directory
+        shutil.copy(file_path, target_code)
+        with open(target_code, 'r') as json_file:
+            notebook = json.load(json_file)
+        # Add code for logging and cli parameters to the beginning of the notebook
+        notebook['cells'].insert(0, {
+            'cell_type': 'code', 'execution_count': None, 'metadata': {}, 'outputs': [],
+            'source': component_setup_code_wo_logging if skip_logging else python_component_setup_code})
+        with open(target_code, 'w') as json_file:
+             json.dump(notebook, json_file)
+        # getting parameter from the script
+        script_data = Notebook(target_code)
+        dockerfile_template = custom_dockerfile_template or python_dockerfile_template
+        command = '/opt/app-root/bin/ipython'
+        working_dir = '/opt/app-root/src/'
+
+    elif file_path.lower().endswith('.r'):
+        # use temp file for processing
+        target_code = 'claimed_' + os.path.basename(file_path)
+        # Copy file to current working directory
+        shutil.copy(file_path, target_code)
         # Add code for logging and cli parameters to the beginning of the script
         with open(target_code, 'r') as f:
             script = f.read()
@@ -289,8 +295,10 @@ def create_operator(file_path: str,
         # getting parameter from the script
         script_data = Rscript(target_code)
         dockerfile_template = custom_dockerfile_template or r_dockerfile_template
+        command = 'Rscript'
+        working_dir = '/home/docker/'
     else:
-        raise NotImplementedError('C3 currently only supports jupyter notebooks, python scripts, and R scripts.')
+        raise NotImplementedError('Please provide a file_path to a jupyter notebook, python script, or R script.')
 
     name = script_data.get_name()
     # convert description into a string with a single line
