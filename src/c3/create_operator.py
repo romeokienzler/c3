@@ -129,12 +129,16 @@ def create_kubernetes_job(name, repository, version, target_code, target_dir, co
 
 
 def create_cwl_component(name, repository, version, file_path, inputs, outputs):
+    type_dict = {'String': 'string', 'Integer': 'int', 'Float': 'float', 'Boolean': 'bool'}
     # get environment entries
     i = 1
     input_envs = str()
     for input, options in inputs.items():
         i += 1
-        input_envs += (f"  {input}:\n    type: string\n    default: {options['default']}\n    "
+        # Convert string default value to CWL types
+        default_value = options['default'] if options['type'] == 'String' and options['default'] != '"None"' \
+            else options['default'].strip('"\'')
+        input_envs += (f"  {input}:\n    type: {type_dict[options['type']]}\n    default: {default_value}\n    "
                        f"inputBinding:\n      position: {i}\n      prefix: --{input}\n")
 
     if len(outputs) == 0:
