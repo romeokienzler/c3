@@ -7,7 +7,7 @@ from string import Template
 from c3.pythonscript import Pythonscript
 from c3.utils import convert_notebook
 from c3.create_operator import create_operator
-from c3.templates import grid_wrapper_template, cos_grid_wrapper_template, gw_component_setup_code
+from c3.templates import grid_wrapper_template, cos_grid_wrapper_template, component_setup_code_wo_logging
 
 
 def wrap_component(component_path,
@@ -79,7 +79,7 @@ def get_component_elements(file_path):
 
 
 # Adding code
-def edit_component_code(file_path):
+def edit_component_code(file_path, component_process):
     file_name = os.path.basename(file_path)
     if file_path.endswith('.ipynb'):
         logging.info('Convert notebook to python script')
@@ -88,14 +88,16 @@ def edit_component_code(file_path):
         file_name = os.path.basename(file_path)
     else:
         # write edited code to different file
-        target_file = os.path.join(os.path.dirname(file_path), 'component_' + file_name)
+        target_file = os.path.join(os.path.dirname(file_path), 'component_' + file_name.replace('-', '_'))
 
     target_file_name = os.path.basename(target_file)
 
     with open(file_path, 'r') as f:
         script = f.read()
+    assert component_process in script, (f'Did not find the grid process {component_process} in the script. '
+                                         f'Please provide the grid process in the arguments `-p <grid_process>`.')
     # Add code for logging and cli parameters to the beginning of the script
-    script = gw_component_setup_code + script
+    script = component_setup_code_wo_logging + script
     # replace old filename with new file name
     script = script.replace(file_name, target_file_name)
     with open(target_file, 'w') as f:
@@ -114,7 +116,7 @@ def apply_grid_wrapper(file_path, component_process, cos):
     assert file_path.endswith('.py') or file_path.endswith('.ipynb'), \
         "Please provide a component file path to a python script or notebook."
 
-    file_path = edit_component_code(file_path)
+    file_path = edit_component_code(file_path, component_process)
 
     description, interface, inputs, dependencies = get_component_elements(file_path)
 
@@ -142,7 +144,7 @@ def main():
                         help='Path to python script or notebook')
     parser.add_argument('ADDITIONAL_FILES', type=str, nargs='*',
                         help='List of paths to additional files to include in the container image')
-    parser.add_argument('-p', '--component_process', type=str, required=True,
+    parser.add_argument('-p', '--component_process', type=str, default='grid_process',
                         help='Name of the component sub process that is executed for each batch.')
     parser.add_argument('--cos', action=argparse.BooleanOptionalAction, default=False,
                         help='Creates a grid wrapper for processing COS files')
@@ -156,8 +158,14 @@ def main():
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
-    parser.add_argument('--test_mode', action='store_true')
-    parser.add_argument('--no-cache', action='store_true')
+    parser.add_argument('--local_mode', action='store_true',
+                        help='Continue processing after docker errors.')
+    parser.add_argument('--no-cache', action='store_true', help='Not using cache for docker build.')
+    parser.add_argument('--skip-logging', action='store_true',
+                        help='Exclude logging code from component setup code')
+    parser.add_argument('--keep-generated-files', action='store_true',
+                        help='Do not delete temporary generated files.')
+
     args = parser.parse_args()
 
     # Init logging
@@ -169,13 +177,14 @@ def main():
     handler.setLevel(args.log_level)
     root.addHandler(handler)
 
-    grid_wrapper_file_path, component_path = apply_grid_wrapper(
-        file_path=args.FILE_PATH,
-        component_process=args.component_process,
-        cos=args.cos,
-    )
+    grid_wrapper_file_path = component_path = ''
+    try:
+        grid_wrapper_file_path, component_path = apply_grid_wrapper(
+            file_path=args.FILE_PATH,
+            component_process=args.component_process,
+            cos=args.cos,
+        )
 
-    if args.repository is not None:
         logging.info('Generate CLAIMED operator for grid wrapper')
 
         # Add component path and init file path to additional_files
@@ -196,14 +205,24 @@ def main():
             custom_dockerfile_template=custom_dockerfile_template,
             additional_files=args.ADDITIONAL_FILES,
             log_level=args.log_level,
-            test_mode=args.test_mode,
+            local_mode=args.local_mode,
             no_cache=args.no_cache,
             overwrite_files=args.overwrite,
             rename_files=args.rename,
+            skip_logging=args.skip_logging,
+            keep_generated_files=args.keep_generated_files,
         )
-
-        logging.info('Remove local component file')
-        os.remove(component_path)
+    except Exception as err:
+        logging.error('Error while generating CLAIMED grid wrapper. '
+                      'Consider using `--log_level DEBUG` and `--keep-generated-files` for debugging.')
+        raise err
+    finally:
+        if not args.keep_generated_files:
+            logging.info('Remove local component file and grid wrapper code.')
+            if os.path.isfile(grid_wrapper_file_path):
+                os.remove(grid_wrapper_file_path)
+            if os.path.isfile(component_path):
+                os.remove(component_path)
 
 
 if __name__ == '__main__':

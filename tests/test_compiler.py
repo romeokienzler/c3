@@ -121,7 +121,7 @@ def test_create_operator(
         args: List,
 ):
     subprocess.run(['python', '../src/c3/create_operator.py', file_path, *args, '-r', repository,
-                    '--test_mode', '-v', 'test', '--log_level', 'DEBUG'],
+                    '--local_mode', '-v', 'test', '--log_level', 'DEBUG', '--overwrite'],
                    check=True)
 
     file = Path(file_path)
@@ -136,7 +136,7 @@ def test_create_operator(
 test_create_gridwrapper_input = [
     (
         TEST_SCRIPT_PATH,
-        DUMMY_REPO,
+        None,
         'process',
         [TEST_NOTEBOOK_PATH],
     ),
@@ -157,8 +157,8 @@ def test_create_gridwrapper(
         process: str,
         args: List,
 ):
-    subprocess.run(['python', '../src/c3/create_gridwrapper.py', file_path, *args,
-                    '-r', repository, '-p', process, '--test_mode', '-v', 'test', '--log_level', 'DEBUG'], check=True)
+    subprocess.run(['python', '../src/c3/create_gridwrapper.py', file_path, *args, '--overwrite',
+                    '-p', process, '--local_mode', '-v', 'test', '--log_level', 'DEBUG'], check=True)
 
     file = Path(file_path)
     gw_file = file.parent / f'gw_{file.stem}.py'
@@ -166,7 +166,6 @@ def test_create_gridwrapper(
     gw_file.with_suffix('.yaml').unlink()
     gw_file.with_suffix('.job.yaml').unlink()
     gw_file.with_suffix('.cwl').unlink()
-    gw_file.unlink()
     image_name = f"{repository}/claimed-gw-{file_path.rsplit('.')[0].replace('_', '-')}:test"
     # TODO: Modify subprocess call to test grid wrapper
     # subprocess.run(['docker', 'run', image_name], check=True)

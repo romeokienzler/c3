@@ -7,13 +7,15 @@ import argparse
 import subprocess
 import glob
 import re
+import json
 from pathlib import Path
 from string import Template
 from typing import Optional
 from c3.pythonscript import Pythonscript
+from c3.notebook import Notebook
 from c3.rscript import Rscript
 from c3.utils import convert_notebook, get_image_version
-from c3.templates import (python_component_setup_code, r_component_setup_code,
+from c3.templates import (python_component_setup_code, component_setup_code_wo_logging, r_component_setup_code,
                           python_dockerfile_template, r_dockerfile_template,
                           kfp_component_template, kubernetes_job_template, cwl_component_template)
 
@@ -129,12 +131,16 @@ def create_kubernetes_job(name, repository, version, target_code, target_dir, co
 
 
 def create_cwl_component(name, repository, version, file_path, inputs, outputs):
+    type_dict = {'String': 'string', 'Integer': 'int', 'Float': 'float', 'Boolean': 'bool'}
     # get environment entries
     i = 1
     input_envs = str()
     for input, options in inputs.items():
         i += 1
-        input_envs += (f"  {input}:\n    type: string\n    default: {options['default']}\n    "
+        # Convert string default value to CWL types
+        default_value = options['default'] if options['type'] == 'String' and options['default'] != '"None"' \
+            else options['default'].strip('"\'')
+        input_envs += (f"  {input}:\n    type: {type_dict[options['type']]}\n    default: {default_value}\n    "
                        f"inputBinding:\n      position: {i}\n      prefix: --{input}\n")
 
     if len(outputs) == 0:
@@ -224,29 +230,56 @@ def create_operator(file_path: str,
                     custom_dockerfile_template: Optional[Template],
                     additional_files: str = None,
                     log_level='INFO',
-                    test_mode=False,
+                    local_mode=False,
                     no_cache=False,
                     rename_files=None,
                     overwrite_files=False,
+                    skip_logging=False,
+                    keep_generated_files=False,
                     ):
     logging.info('Parameters: ')
     logging.info('file_path: ' + file_path)
-    logging.info('repository: ' + repository)
+    logging.info('repository: ' + str(repository))
     logging.info('version: ' + str(version))
-    logging.info('additional_files: ' + str(additional_files))
+    logging.info('additional_files: ' + '; '.join(additional_files))
 
-    if file_path.endswith('.ipynb'):
-        logging.info('Convert notebook to python script')
-        target_code = convert_notebook(file_path)
-        command = '/opt/app-root/bin/ipython'
-        working_dir = '/opt/app-root/src/'
-
-    elif file_path.endswith('.py'):
+    if file_path.endswith('.py'):
         # use temp file for processing
         target_code = 'claimed_' + os.path.basename(file_path)
         # Copy file to current working directory
         shutil.copy(file_path, target_code)
+        # Add code for logging and cli parameters to the beginning of the script
+        with open(target_code, 'r') as f:
+            script = f.read()
+        if skip_logging:
+            script = component_setup_code_wo_logging + script
+        else:
+            script = python_component_setup_code + script
+        with open(target_code, 'w') as f:
+            f.write(script)
+        # getting parameter from the script
+        script_data = Pythonscript(target_code)
+        dockerfile_template = custom_dockerfile_template or python_dockerfile_template
         command = '/opt/app-root/bin/python'
+        working_dir = '/opt/app-root/src/'
+
+    elif file_path.endswith('.ipynb'):
+        # use temp file for processing
+        target_code = 'claimed_' + os.path.basename(file_path)
+        # Copy file to current working directory
+        shutil.copy(file_path, target_code)
+        with open(target_code, 'r') as json_file:
+            notebook = json.load(json_file)
+        # Add code for logging and cli parameters to the beginning of the notebook
+        notebook['cells'].insert(0, {
+            'cell_type': 'code', 'execution_count': None, 'metadata': {}, 'outputs': [],
+            'source': component_setup_code_wo_logging if skip_logging else python_component_setup_code})
+        with open(target_code, 'w') as json_file:
+             json.dump(notebook, json_file)
+        # getting parameter from the script
+        script_data = Notebook(target_code)
+        dockerfile_template = custom_dockerfile_template or python_dockerfile_template
+        command = '/opt/app-root/bin/ipython'
         working_dir = '/opt/app-root/src/'
 
     elif file_path.lower().endswith('.r'):
@@ -254,24 +287,6 @@ def create_operator(file_path: str,
         target_code = 'claimed_' + os.path.basename(file_path)
         # Copy file to current working directory
         shutil.copy(file_path, target_code)
-        command = 'Rscript'
-        working_dir = '/home/docker/'
-    else:
-        raise NotImplementedError('Please provide a file_path to a jupyter notebook, python script, or R script.')
-
-    if target_code.endswith('.py'):
-        # Add code for logging and cli parameters to the beginning of the script
-        with open(target_code, 'r') as f:
-            script = f.read()
-        script = python_component_setup_code + script
-        with open(target_code, 'w') as f:
-            f.write(script)
-
-        # getting parameter from the script
-        script_data = Pythonscript(target_code)
-        dockerfile_template = custom_dockerfile_template or python_dockerfile_template
-
-    elif target_code.lower().endswith('.r'):
         # Add code for logging and cli parameters to the beginning of the script
         with open(target_code, 'r') as f:
             script = f.read()
@@ -281,8 +296,10 @@ def create_operator(file_path: str,
         # getting parameter from the script
         script_data = Rscript(target_code)
         dockerfile_template = custom_dockerfile_template or r_dockerfile_template
+        command = 'Rscript'
+        working_dir = '/home/docker/'
     else:
-        raise NotImplementedError('C3 currently only supports jupyter notebooks, python scripts, and R scripts.')
+        raise NotImplementedError('Please provide a file_path to a jupyter notebook, python script, or R script.')
 
     name = script_data.get_name()
     # convert description into a string with a single line
@@ -303,10 +320,10 @@ def create_operator(file_path: str,
         target_dir += '/'
 
     logging.info('Operator name: ' + name)
-    logging.info('Description:: ' + description)
-    logging.info('Inputs: ' + str(inputs))
-    logging.info('Outputs: ' + str(outputs))
-    logging.info('Requirements: ' + str(requirements))
+    logging.info('Description: ' + description)
+    logging.info('Inputs:\n' + ('\n'.join([f'{k}: {v}' for k, v in inputs.items()])))
+    logging.info('Outputs:\n' + ('\n'.join([f'{k}: {v}' for k, v in outputs.items()])))
+    logging.info('Requirements: ' + '; '.join(requirements))
     logging.debug(f'Target code: {target_code}')
     logging.debug(f'Target directory: {target_dir}')
 
@@ -334,6 +351,12 @@ def create_operator(file_path: str,
         # auto increase version based on registered images
         version = get_image_version(repository, name)
 
+    if repository is None:
+        if not local_mode:
+            logging.warning('No repository provided. The container image is only saved locally. Add `-r <repository>` '
+                            'to push the image to a container registry or run `--local_mode` to suppress this warning.')
+        local_mode = True
+
     logging.info(f'Building container image claimed-{name}:{version}')
     try:
         # Run docker build
@@ -341,50 +364,52 @@ def create_operator(file_path: str,
             f"docker build --platform linux/amd64 -t claimed-{name}:{version} . {'--no-cache' if no_cache else ''}",
             stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True
         )
-
-        # Run docker tag
-        logging.debug(f'Tagging images with "latest" and "{version}"')
-        subprocess.run(
-            f"docker tag claimed-{name}:{version} {repository}/claimed-{name}:{version}",
-            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
-        )
-        subprocess.run(
-            f"docker tag claimed-{name}:{version} {repository}/claimed-{name}:latest",
-            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
-        )
+        if repository is not None:
+            # Run docker tag
+            logging.debug(f'Tagging images with "latest" and "{version}"')
+            subprocess.run(
+                f"docker tag claimed-{name}:{version} {repository}/claimed-{name}:{version}",
+                stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
+            )
+            subprocess.run(
+                f"docker tag claimed-{name}:{version} {repository}/claimed-{name}:latest",
+                stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
+            )
     except Exception as err:
-        remove_temporary_files(file_path, target_code)
         logging.error('Docker build failed. Consider running C3 with `--log_level DEBUG` to see the docker build logs.')
-        raise err
-    logging.info('Successfully built image')
-
-    logging.info(f'Pushing images to registry {repository}')
-    try:
-        # Run docker push
-        subprocess.run(
-            f"docker push {repository}/claimed-{name}:latest",
-            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
-        )
-        subprocess.run(
-            f"docker push {repository}/claimed-{name}:{version}",
-            stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
-        )
-        logging.info('Successfully pushed image to registry')
-    except Exception as err:
-        logging.error(f'Could not push images to namespace {repository}. '
-                      f'Please check if docker is logged in or select a namespace with access.')
-        if test_mode:
-            logging.info('Continue processing (test mode).')
-            pass
-        else:
+        if not keep_generated_files:
             remove_temporary_files(file_path, target_code)
+        raise err
+    logging.info(f'Successfully built image claimed-{name}:{version}')
+
+    if local_mode:
+        logging.info(f'No repository provided, skip docker push.')
+    else:
+        logging.info(f'Pushing images to registry {repository}')
+        try:
+            # Run docker push
+            subprocess.run(
+                f"docker push {repository}/claimed-{name}:latest",
+                stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
+            )
+            subprocess.run(
+                f"docker push {repository}/claimed-{name}:{version}",
+                stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True,
+            )
+            logging.info('Successfully pushed image to registry')
+        except Exception as err:
+            logging.error(f'Could not push images to namespace {repository}. '
+                          f'Please check if docker is logged in or select a namespace with access.')
+            if not keep_generated_files:
+                remove_temporary_files(file_path, target_code)
             raise err
 
     # Check for existing files and optionally modify them before overwriting
     try:
         check_existing_files(file_path, rename_files, overwrite_files)
     except Exception as err:
-        remove_temporary_files(file_path, target_code)
+        if not keep_generated_files:
+            remove_temporary_files(file_path, target_code)
         raise err
 
     # Create application scripts
@@ -398,7 +423,8 @@ def create_operator(file_path: str,
     print_claimed_command(name, repository, version, inputs)
 
     # Remove temp files
-    remove_temporary_files(file_path, target_code)
+    if not keep_generated_files:
+        remove_temporary_files(file_path, target_code)
 
 
 def main():
@@ -407,7 +433,7 @@ def main():
                         help='Path to python script or notebook')
     parser.add_argument('ADDITIONAL_FILES', type=str, nargs='*',
                         help='Paths to additional files to include in the container image')
-    parser.add_argument('-r', '--repository', type=str, required=True,
+    parser.add_argument('-r', '--repository', type=str, default=None,
                         help='Container registry address, e.g. docker.io/<username>')
     parser.add_argument('-v', '--version', type=str, default=None,
                         help='Container image version. Auto-increases the version number if not provided (default 0.1)')
@@ -417,8 +443,13 @@ def main():
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
-    parser.add_argument('--test_mode', action='store_true')
-    parser.add_argument('--no-cache', action='store_true')
+    parser.add_argument('--local_mode', action='store_true',
+                        help='Continue processing after docker errors.')
+    parser.add_argument('--no-cache', action='store_true', help='Not using cache for docker build.')
+    parser.add_argument('--skip-logging', action='store_true',
+                        help='Exclude logging code from component setup code')
+    parser.add_argument('--keep-generated-files', action='store_true',
+                        help='Do not delete temporary generated files.')
     args = parser.parse_args()
 
     # Init logging
@@ -445,10 +476,12 @@ def main():
         custom_dockerfile_template=custom_dockerfile_template,
         additional_files=args.ADDITIONAL_FILES,
         log_level=args.log_level,
-        test_mode=args.test_mode,
+        local_mode=args.local_mode,
         no_cache=args.no_cache,
         overwrite_files=args.overwrite,
         rename_files=args.rename,
+        skip_logging=args.skip_logging,
+        keep_generated_files=args.keep_generated_files,
     )
 
 

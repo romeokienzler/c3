@@ -49,14 +49,14 @@ class FileReader(LoggingConfigurable):
         else:
             return None
 
-    def read_next_code_chunk(self) -> List[str]:
+    def read_next_code_line(self) -> List[str]:
         """
         Implements a generator for lines of code in the specified filepath. Subclasses
         may override if explicit line-by-line parsing is not feasible, e.g. with Notebooks.
         """
         with open(self._filepath) as f:
             for line in f:
-                yield [line.strip()]
+                yield line.strip()
 
 
 class NotebookReader(FileReader):
@@ -79,10 +79,11 @@ class NotebookReader(FileReader):
     def language(self) -> str:
         return self._language
 
-    def read_next_code_chunk(self) -> List[str]:
+    def read_next_code_line(self) -> List[str]:
         for cell in self._notebook.cells:
             if cell.source and cell.cell_type == "code":
-                yield cell.source.split('\n')
+                for line in cell.source.split('\n'):
+                    yield line
 
 
 class ScriptParser():
@@ -157,19 +158,17 @@ class ContentParser(LoggingConfigurable):
         if not parser:
             return properties
 
-        for chunk in reader.read_next_code_chunk():
-            if chunk:
-                for line in chunk:
-                    matches = parser.parse_environment_variables(line)
-                    for key, match in matches:
-                        if key == "inputs":
-                            default_value = match.group(2)
-                            if default_value:
-                                # The default value match can end with an additional ', ", or ) which is removed
-                                default_value = re.sub(r"['\")]?$", '', default_value, count=1)
-                            properties[key][match.group(1)] = default_value
-                        else:
-                            properties[key].append(match.group(1))
+        for line in reader.read_next_code_line():
+            matches = parser.parse_environment_variables(line)
+            for key, match in matches:
+                if key == "inputs":
+                    default_value = match.group(2)
+                    if default_value:
+                        # The default value match can end with an additional ', ", or ) which is removed
+                        default_value = re.sub(r"['\")]?$", '', default_value, count=1)
+                    properties[key][match.group(1)] = default_value
+                else:
+                    properties[key].append(match.group(1))
 
         return properties
 
