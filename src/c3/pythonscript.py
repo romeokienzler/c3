@@ -34,7 +34,7 @@ class Pythonscript:
                         # previous line was no description, reset comment_line.
                         comment_line = ''
                     if comment_line == '':
-                        logging.info(f'Interface: No description for variable {env_name} provided.')
+                        logging.debug(f'Interface: No description for variable {env_name} provided.')
                     if re.search(r'=\s*int\(\s*os', line):
                         type = 'Integer'
                     elif re.search(r'=\s*float\(\s*os', line):
@@ -73,7 +73,7 @@ class Pythonscript:
                 requirements.append(line.replace('#', '').strip())
 
         # Add pip install
-        pattern = r"^[# ]*(pip[ ]*install)[ ]*(.[^#]*)"
+        pattern = r"^[# !]*(pip[ ]*install)[ ]*(.[^#]*)"
         for line in self.script.split('\n'):
             result = re.findall(pattern, line)
             if len(result) == 1:
