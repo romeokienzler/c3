@@ -31,7 +31,7 @@ class Rscript:
                         # previous line was no description, reset comment_line.
                         comment_line = ''
                     if comment_line == '':
-                        logging.info(f'Interface: No description for variable {env_name} provided.')
+                        logging.debug(f'Interface: No description for variable {env_name} provided.')
                     if re.search(r'=\s*as.numeric\(\s*os', line):
                         type = 'Float'  # double in R
                     elif re.search(r'=\s*bool\(\s*os', line):
