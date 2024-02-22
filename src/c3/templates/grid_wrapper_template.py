@@ -15,13 +15,34 @@ import time
 import glob
 from pathlib import Path
 import pandas as pd
+import s3fs
+
 
 # import component code
 from ${component_name} import *
 
 
-# File with batches. Provided as a comma-separated list of strings or keys in a json dict.
+explode_connection_string(cs):
+    if cs is None:
+        return None
+    if cs.startswith('cos') or cs.startswith('s3'):
+        buffer=cs.split('://')[1]
+        access_key_id=buffer.split('@')[0].split(':')[0]
+        secret_access_key=buffer.split('@')[0].split(':')[1]
+        endpoint=buffer.split('@')[1].split('/')[0]
+        path='/'.join(buffer.split('@')[1].split('/')[1:])
+        return (access_key_id, secret_access_key, endpoint, path)
+    else:
+        return (None, None, None, cs)
+        # TODO consider cs as secret and grab connection string from kubernetes
+
+
+
+# File with batches. Provided as a comma-separated list of strings,  keys in a json dict or single column CSV with 'filename' has header. Either local path as [cos|s3]://user:pw@endpoint/path
 gw_batch_file = os.environ.get('gw_batch_file', None)
+(gw_batch_file_access_key_id, gw_batch_secret_access_key, gw_batch_endpoint, gw_batch_file) = explode_connection_string(gw_batch_file):
+
+
 # file path pattern like your/path/**/*.tif. Multiple patterns can be separated with commas. Is ignored if gw_batch_file is provided.
 gw_file_path_pattern = os.environ.get('gw_file_path_pattern', None)
 # pattern for grouping file paths into batches like ".split('.')[-1]". Is ignored if gw_batch_file is provided.
@@ -43,25 +64,54 @@ gw_ignore_error_files = bool(os.environ.get('gw_ignore_error_files', False))
 ${component_interface}
 
 def load_batches_from_file(batch_file):
-    if batch_file.endswith('.json'):
-        # load batches from keys of a json file
-        logging.info(f'Loading batches from json file: {batch_file}')
-        with open(batch_file, 'r') as f:
-            batch_dict = json.load(f)
-        batches = batch_dict.keys()
+    if gw_batch_file_access_key_id is not None:
+        s3source = s3fs.S3FileSystem(
+            anon=False,
+            key=gw_batch_file_access_key_id,
+            secret=gw_batch_secret_access_key,
+            client_kwargs={'endpoint_url': gw_batch_endpoint})
 
-    elif batch_file.endswith('.csv'):
-        # load batches from keys of a csv file
-        logging.info(f'Loading batches from csv file: {batch_file}')
-        df = pd.read_csv(batch_file, header='infer')
-        batches = df['filename'].to_list()
 
+        if batch_file.endswith('.json'):
+            # load batches from keys of a json file
+            logging.info(f'Loading batches from json file: {batch_file}')
+            with s3source.open(gw_batch_file, 'r') as f:
+                batch_dict = json.load(f)
+            batches = batch_dict.keys()
+
+        elif batch_file.endswith('.csv'):
+            # load batches from keys of a csv file
+            logging.info(f'Loading batches from csv file: {batch_file}')
+            s3source.get(batch_file, batch_file)
+            df = pd.read_csv(batch_file, header='infer')
+            batches = df['filename'].to_list()
+
+        else:
+            # Load batches from comma-separated txt file
+            logging.info(f'Loading comma-separated batch strings from file: {batch_file}')
+            with s3source.open(gw_batch_file, 'r') as f:
+                batch_string = f.read()
+            batches = [b.strip() for b in batch_string.split(',')]
     else:
-        # Load batches from comma-separated txt file
-        logging.info(f'Loading comma-separated batch strings from file: {batch_file}')
-        with open(batch_file, 'r') as f:
-            batch_string = f.read()
-        batches = [b.strip() for b in batch_string.split(',')]
+        if batch_file.endswith('.json'):
+            # load batches from keys of a json file
+            logging.info(f'Loading batches from json file: {batch_file}')
+            with open(batch_file, 'r') as f:
+                batch_dict = json.load(f)
+            batches = batch_dict.keys()
+
+        elif batch_file.endswith('.csv'):
+            # load batches from keys of a csv file
+            logging.info(f'Loading batches from csv file: {batch_file}')
+            df = pd.read_csv(batch_file, header='infer')
+            batches = df['filename'].to_list()
+
+        else:
+            # Load batches from comma-separated txt file
+            logging.info(f'Loading comma-separated batch strings from file: {batch_file}')
+            with open(batch_file, 'r') as f:
+                batch_string = f.read()
+            batches = [b.strip() for b in batch_string.split(',')]
 
     logging.info(f'Loaded {len(batches)} batches')
     logging.debug(f'List of batches: {batches}')
@@ -198,4 +248,4 @@ def process_wrapper(sub_process):
 
 
 if __name__ == '__main__':
-    process_wrapper(${component_process})
+    process_wrapper(${component_process}) 
