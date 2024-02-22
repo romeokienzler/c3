@@ -14,6 +14,7 @@ import logging
 import time
 import glob
 from pathlib import Path
+import pandas as pd
 
 # import component code
 from ${component_name} import *
@@ -48,6 +49,12 @@ def load_batches_from_file(batch_file):
         with open(batch_file, 'r') as f:
             batch_dict = json.load(f)
         batches = batch_dict.keys()
+
+    elif batch_file.endswith('.csv'):
+        # load batches from keys of a csv file
+        logging.info(f'Loading batches from csv file: {batch_file}')
+        df = pd.read_csv(batch_file, header='infer')
+        batches = df['filename'].to_list()
 
     else:
         # Load batches from comma-separated txt file
