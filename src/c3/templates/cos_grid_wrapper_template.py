@@ -63,7 +63,6 @@ gw_target_connection = os.environ.get('gw_target_connection')
 (gw_target_access_key_id, gw_target_secret_access_key, gw_target_endpoint, gw_target_path) = explode_connection_string(gw_target_connection)
 
 # cos gw_coordinator_connection
-
 gw_coordinator_connection = os.environ.get('gw_coordinator_connection')
 (gw_coordinator_access_key_id, gw_coordinator_secret_access_key, gw_coordinator_endpoint, gw_coordinator_path) = explode_connection_string(gw_target_connection)
 
