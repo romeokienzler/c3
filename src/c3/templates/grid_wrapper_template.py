@@ -17,7 +17,6 @@ from pathlib import Path
 import pandas as pd
 import s3fs
 
-
 # import component code
 from ${component_name} import *
 
@@ -86,12 +85,14 @@ def load_batches_from_file(batch_file):
             df = pd.read_csv(batch_file, header='infer')
             batches = df['filename'].to_list()
 
+
         else:
             # Load batches from comma-separated txt file
             logging.info(f'Loading comma-separated batch strings from file: {batch_file}')
             with s3source.open(gw_batch_file, 'r') as f:
                 batch_string = f.read()
             batches = [b.strip() for b in batch_string.split(',')]
+            
     else:
         if batch_file.endswith('.json'):
             # load batches from keys of a json file
