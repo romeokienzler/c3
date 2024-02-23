@@ -14,6 +14,7 @@ KUBERNETES_JOB_FILE = 'kubernetes_job_template.job.yaml'
 CWL_COMPONENT_FILE = 'cwl_component_template.cwl'
 GRID_WRAPPER_FILE = 'grid_wrapper_template.py'
 COS_GRID_WRAPPER_FILE = 'cos_grid_wrapper_template.py'
+S3KV_GRID_WRAPPER_FILE = 's3kv_grid_wrapper_template.py'
 
 # load templates
 template_path = Path(os.path.dirname(__file__))
@@ -47,3 +48,6 @@ with open(template_path / GRID_WRAPPER_FILE, 'r') as f:
 
 with open(template_path / COS_GRID_WRAPPER_FILE, 'r') as f:
     cos_grid_wrapper_template = Template(f.read())
+
+with open(template_path / S3KV_GRID_WRAPPER_FILE, 'r') as f:
+    s3kv_grid_wrapper_template = Template(f.read())
