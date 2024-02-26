@@ -45,7 +45,7 @@ def wrap_component(component_path,
     )
 
     # Write edited code to file
-    grid_wrapper_file = 'grid_wrapper.py'
+    grid_wrapper_file = f'gw_{component_name}.py'
     grid_wrapper_file_path = os.path.join(os.path.dirname(component_path), grid_wrapper_file)
     # remove 'component_' from gw path
     grid_wrapper_file_path = grid_wrapper_file_path.replace('component_', '')
