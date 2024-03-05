@@ -272,9 +272,16 @@ def process_wrapper(sub_process):
     s3coordinator.makedirs(coordinator_dir, exist_ok=True)
 
     # get batches
-    if gw_batch_file is not None and os.path.isfile(gw_batch_file):
+    cos_gw_batch_file = str(Path(gw_source_bucket) / gw_batch_file)
+    if (gw_batch_file is not None and (os.path.isfile(gw_batch_file) or s3source.exists(cos_gw_batch_file))):
+        if not os.path.isfile(gw_batch_file):
+            # Download batch file
+            s3source.get(cos_gw_batch_file, gw_batch_file)
         batches = load_batches_from_file(gw_batch_file)
-        cos_files = get_files_from_pattern(gw_file_path_pattern)
+        if gw_file_path_pattern:
+            cos_files = get_files_from_pattern(gw_file_path_pattern)
+        else:
+            cos_files = []
     elif gw_file_path_pattern is not None and gw_group_by is not None:
         batches, cos_files = identify_batches_from_pattern(gw_file_path_pattern, gw_group_by)
     else:
