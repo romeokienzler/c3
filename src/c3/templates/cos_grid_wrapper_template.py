@@ -27,6 +27,8 @@ from ${component_name} import *
 
 # File containing batches. Provided as a comma-separated list of strings or keys in a json dict. All batch file names must contain the batch name.
 gw_batch_file = os.environ.get('gw_batch_file', None)
+# Optional column name for a csv batch file (default: 'filename')
+gw_batch_file_col_name = os.environ.get('gw_batch_file_col_name', 'filename')
 # file path pattern like your/path/**/*.tif. Multiple patterns can be separated with commas. It is ignored if gw_batch_file is provided.
 gw_file_path_pattern = os.environ.get('gw_file_path_pattern', None)
 # pattern for grouping file paths into batches like ".split('.')[-2]". It is ignored if gw_batch_file is provided.
@@ -40,8 +42,10 @@ gw_local_input_path = os.environ.get('gw_local_input_path', 'input')
 gw_local_target_path = os.environ.get('gw_local_target_path', 'target')
 
 
-explode_connection_string(cs):
-    if cs.startswith('cos') or cs.startswith('s3'):
+def explode_connection_string(cs):
+    if cs is None:
+        return None, None, None, None
+    elif cs.startswith('cos') or cs.startswith('s3'):
         buffer=cs.split('://')[1]
         access_key_id=buffer.split('@')[0].split(':')[0]
         secret_access_key=buffer.split('@')[0].split(':')[1]
@@ -49,14 +53,14 @@ explode_connection_string(cs):
         path='/'.join(buffer.split('@')[1].split('/')[1:])
         return (access_key_id, secret_access_key, endpoint, path)
     else:
-        None
         # TODO consider cs as secret and grab connection string from kubernetes
+        raise NotImplementedError
 
 
 
 # cos gw_source_connection
 gw_source_connection = os.environ.get('gw_source_connection')
-(gw_source_access_key_id, gw_source_secret_access_key, gw_source_endpoint, gw_source_bucket) = explode_connection_string(gw_source_connection)
+(gw_source_access_key_id, gw_source_secret_access_key, gw_source_endpoint, gw_source_path) = explode_connection_string(gw_source_connection)
 
 # cos gw_target_connection
 gw_target_connection = os.environ.get('gw_target_connection')
@@ -78,7 +82,7 @@ gw_lock_timeout = int(os.environ.get('gw_lock_timeout', 10800))
 gw_ignore_error_files = bool(os.environ.get('gw_ignore_error_files', False))
 
 # maximal wait time for staggering start
-gw_max_time_wait_staggering = int(os.environ.get('gw_max_time_wait_staggering',60))
+gw_max_time_wait_staggering = int(os.environ.get('gw_max_time_wait_staggering', 60))
 
 
 # component interface
@@ -91,12 +95,15 @@ s3source = s3fs.S3FileSystem(
     secret=gw_source_secret_access_key,
     client_kwargs={'endpoint_url': gw_source_endpoint})
 
+gw_source_path = Path(gw_source_path)
+
 if gw_target_connection is not None:
     s3target = s3fs.S3FileSystem(
         anon=False,
         key=gw_target_access_key_id,
         secret=gw_target_secret_access_key,
         client_kwargs={'endpoint_url': gw_target_endpoint})
+    gw_target_path = Path(gw_target_path)
 else:
     logging.debug('Using source path as target path.')
     gw_target_path = gw_source_path
@@ -108,6 +115,7 @@ if gw_coordinator_connection is not None:
         key=gw_coordinator_access_key_id,
         secret=gw_coordinator_secret_access_key,
         client_kwargs={'endpoint_url': gw_coordinator_endpoint})
+    gw_coordinator_path = Path(gw_coordinator_path)
 else:
     logging.debug('Using source bucket as coordinator bucket.')
     gw_coordinator_path = gw_source_path
@@ -117,23 +125,29 @@ def load_batches_from_file(batch_file):
     if batch_file.endswith('.json'):
         # load batches from keys of a json file
         logging.info(f'Loading batches from json file: {batch_file}')
-        with s3source.open(gw_source_path / batch_file, 'r') as f:
+        with open(batch_file, 'r') as f:
             batch_dict = json.load(f)
         batches = batch_dict.keys()
 
     elif batch_file.endswith('.csv'):
         # load batches from keys of a csv file
         logging.info(f'Loading batches from csv file: {batch_file}')
-        s3source.get(gw_source_path / batch_file, batch_file)
         df = pd.read_csv(batch_file, header='infer')
-        batches = df['filename'].to_list()
+        assert gw_batch_file_col_name in df.columns, \
+            f'gw_batch_file_col_name {gw_batch_file_col_name} not in columns of batch file {batch_file}'
+        batches = df[gw_batch_file_col_name].to_list()
 
-    else:
+    elif batch_file.endswith('.txt'):
         # Load batches from comma-separated txt file
         logging.info(f'Loading comma-separated batch strings from file: {batch_file}')
-        with s3source.open(gw_source_path / batch_file, 'r') as f:
+        with open(batch_file, 'r') as f:
             batch_string = f.read()
         batches = [b.strip() for b in batch_string.split(',')]
+    else:
+        raise ValueError(f'C3 only supports batch files of type '
+                         f'json (batches = dict keys), '
+                         f'csv (batches = column values), or '
+                         f'txt (batches = comma-seperated list).')
 
     logging.info(f'Loaded {len(batches)} batches')
     logging.debug(f'List of batches: {batches}')
@@ -148,8 +162,9 @@ def get_files_from_pattern(file_path_patterns):
     # Iterate over comma-separated paths
     for file_path_pattern in file_path_patterns.split(','):
         logging.info(f'Get file paths from pattern: {file_path_pattern}')
-        files = s3source.glob(str(Path(gw_source_path) / file_path_pattern.strip()))
-        assert len(files) > 0, f"Found no files with file_path_pattern {file_path_pattern}."
+        files = s3source.glob(str(gw_source_path / file_path_pattern.strip()))
+        if len(files) == 0:
+            logging.warning(f"Found no files with file_path_pattern {file_path_pattern}.")
         all_files.extend(files)
     logging.info(f'Found {len(all_files)} cos files')
     return all_files
@@ -229,7 +244,7 @@ def perform_process(process, batch, cos_files):
     try:
         target_files = process(batch, ${component_inputs})
     except Exception as err:
-        logging.error(f'{type(err).__name__} in batch {batch}: {err}')
+        logging.exception(err)
         # Write error to file
         with s3coordinator.open(error_file, 'w') as f:
             f.write(f"{type(err).__name__} in batch {batch}: {err}")
@@ -281,7 +296,7 @@ def process_wrapper(sub_process):
     s3coordinator.makedirs(coordinator_dir, exist_ok=True)
 
     # get batches
-    cos_gw_batch_file = str(Path(gw_source_bucket) / gw_batch_file)
+    cos_gw_batch_file = str(gw_source_path / gw_batch_file)
     if (gw_batch_file is not None and (os.path.isfile(gw_batch_file) or s3source.exists(cos_gw_batch_file))):
         if not os.path.isfile(gw_batch_file):
             # Download batch file
@@ -290,12 +305,15 @@ def process_wrapper(sub_process):
         if gw_file_path_pattern:
             cos_files = get_files_from_pattern(gw_file_path_pattern)
         else:
+            logging.warning('gw_file_path_pattern is not provided. '
+                            'Grid wrapper expects the wrapped operator to handle COS files instead of the automatic download and upload.')
             cos_files = []
     elif gw_file_path_pattern is not None and gw_group_by is not None:
         batches, cos_files = identify_batches_from_pattern(gw_file_path_pattern, gw_group_by)
     else:
         raise ValueError("Cannot identify batches. "
-                         "Provide valid gw_batch_file or gw_file_path_pattern and gw_group_by.")
+                         "Provide valid gw_batch_file (local path or path within source bucket) "
+                         "or gw_file_path_pattern and gw_group_by.")
 
     # Iterate over all batches
     for batch in batches:
