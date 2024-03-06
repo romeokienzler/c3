@@ -7,7 +7,8 @@ from string import Template
 from c3.pythonscript import Pythonscript
 from c3.utils import convert_notebook
 from c3.create_operator import create_operator
-from c3.templates import grid_wrapper_template, cos_grid_wrapper_template, component_setup_code_wo_logging
+from c3.templates import component_setup_code_wo_logging
+import c3
 
 
 def wrap_component(component_path,
@@ -16,12 +17,24 @@ def wrap_component(component_path,
                    component_interface,
                    component_inputs,
                    component_process,
-                   cos,
+                   backend,
                    ):
     # get component name from path
     component_name = os.path.splitext(os.path.basename(component_path))[0]
 
-    gw_template = cos_grid_wrapper_template if cos else grid_wrapper_template
+    logging.info(f'Using backend: {backend}')
+
+
+    backends = {
+      'cos_grid_wrapper' : c3.templates.cos_grid_wrapper_template,
+      'grid_wrapper' : c3.templates.grid_wrapper_template,
+      's3kv_grid_wrapper': c3.templates.s3kv_grid_wrapper_template,
+    }
+    gw_template = backends.get(backend)
+
+    logging.debug(f'Using backend template: {gw_template}')
+
+
     grid_wrapper_code = gw_template.substitute(
         component_name=component_name,
         component_description=component_description,
@@ -32,7 +45,7 @@ def wrap_component(component_path,
     )
 
     # Write edited code to file
-    grid_wrapper_file = f'cgw_{component_name}.py' if cos else f'gw_{component_name}.py'
+    grid_wrapper_file = f'gw_{component_name}.py'
     grid_wrapper_file_path = os.path.join(os.path.dirname(component_path), grid_wrapper_file)
     # remove 'component_' from gw path
     grid_wrapper_file_path = grid_wrapper_file_path.replace('component_', '')
@@ -112,7 +125,7 @@ def edit_component_code(file_path, component_process):
     return target_file
 
 
-def apply_grid_wrapper(file_path, component_process, cos):
+def apply_grid_wrapper(file_path, component_process, backend):
     assert file_path.endswith('.py') or file_path.endswith('.ipynb'), \
         "Please provide a component file path to a python script or notebook."
 
@@ -134,7 +147,7 @@ def apply_grid_wrapper(file_path, component_process, cos):
         logging.debug(component + ':\n' + str(value) + '\n')
 
     logging.info('Wrap component')
-    grid_wrapper_file_path = wrap_component(cos=cos, **component_elements)
+    grid_wrapper_file_path = wrap_component(backend=backend, **component_elements)
     return grid_wrapper_file_path, file_path
 
 
@@ -146,8 +159,8 @@ def main():
                         help='List of paths to additional files to include in the container image')
     parser.add_argument('-p', '--component_process', type=str, default='grid_process',
                         help='Name of the component sub process that is executed for each batch.')
-    parser.add_argument('--cos', action=argparse.BooleanOptionalAction, default=False,
-                        help='Creates a grid wrapper for processing COS files')
+    parser.add_argument('-b', '--backend', type=str, default='s3kv_grid_wrapper',
+                        help='Define backend. Default: s3kv_grid_wrapper. Others: grid_wrapper, cos_grid_wrapper')
     parser.add_argument('-r', '--repository', type=str, default=None,
                         help='Container registry address, e.g. docker.io/<username>')
     parser.add_argument('-v', '--version', type=str, default=None,
@@ -182,7 +195,7 @@ def main():
         grid_wrapper_file_path, component_path = apply_grid_wrapper(
             file_path=args.FILE_PATH,
             component_process=args.component_process,
-            cos=args.cos,
+            backend=args.backend,
         )
 
         logging.info('Generate CLAIMED operator for grid wrapper')

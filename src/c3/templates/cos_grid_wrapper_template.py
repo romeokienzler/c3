@@ -18,6 +18,8 @@ import glob
 import s3fs
 from datetime import datetime
 from pathlib import Path
+import pandas as pd
+
 
 # import component code
 from ${component_name} import *
@@ -37,36 +39,33 @@ gw_local_input_path = os.environ.get('gw_local_input_path', 'input')
 # upload local target files to target cos path
 gw_local_target_path = os.environ.get('gw_local_target_path', 'target')
 
-# cos source_access_key_id
-gw_source_access_key_id = os.environ.get('gw_source_access_key_id')
-# cos source_secret_access_key
-gw_source_secret_access_key = os.environ.get('gw_source_secret_access_key')
-# cos source_endpoint
-gw_source_endpoint = os.environ.get('gw_source_endpoint')
-# cos source_bucket
-gw_source_bucket = os.environ.get('gw_source_bucket')
 
-# cos target_access_key_id (uses source s3 if not provided)
-gw_target_access_key_id = os.environ.get('gw_target_access_key_id', None)
-# cos target_secret_access_key (uses source s3 if not provided)
-gw_target_secret_access_key = os.environ.get('gw_target_secret_access_key', None)
-# cos target_endpoint (uses source s3 if not provided)
-gw_target_endpoint = os.environ.get('gw_target_endpoint', None)
-# cos target_bucket (uses source s3 if not provided)
-gw_target_bucket = os.environ.get('gw_target_bucket', None)
-# cos target_path
-gw_target_path = os.environ.get('gw_target_path')
+explode_connection_string(cs):
+    if cs.startswith('cos') or cs.startswith('s3'):
+        buffer=cs.split('://')[1]
+        access_key_id=buffer.split('@')[0].split(':')[0]
+        secret_access_key=buffer.split('@')[0].split(':')[1]
+        endpoint=buffer.split('@')[1].split('/')[0]
+        path='/'.join(buffer.split('@')[1].split('/')[1:])
+        return (access_key_id, secret_access_key, endpoint, path)
+    else:
+        None
+        # TODO consider cs as secret and grab connection string from kubernetes
 
-# cos coordinator_access_key_id (uses source s3 if not provided)
-gw_coordinator_access_key_id = os.environ.get('gw_coordinator_access_key_id', None)
-# cos coordinator_secret_access_key (uses source s3 if not provided)
-gw_coordinator_secret_access_key = os.environ.get('gw_coordinator_secret_access_key', None)
-# cos coordinator_endpoint (uses source s3 if not provided)
-gw_coordinator_endpoint = os.environ.get('gw_coordinator_endpoint', None)
-# cos coordinator_bucket (uses source s3 if not provided)
-gw_coordinator_bucket = os.environ.get('gw_coordinator_bucket', None)
-# cos path to grid wrapper coordinator directory
-gw_coordinator_path = os.environ.get('gw_coordinator_path')
+
+
+# cos gw_source_connection
+gw_source_connection = os.environ.get('gw_source_connection')
+(gw_source_access_key_id, gw_source_secret_access_key, gw_source_endpoint, gw_source_bucket) = explode_connection_string(gw_source_connection)
+
+# cos gw_target_connection
+gw_target_connection = os.environ.get('gw_target_connection')
+(gw_target_access_key_id, gw_target_secret_access_key, gw_target_endpoint, gw_target_path) = explode_connection_string(gw_target_connection)
+
+# cos gw_coordinator_connection
+gw_coordinator_connection = os.environ.get('gw_coordinator_connection')
+(gw_coordinator_access_key_id, gw_coordinator_secret_access_key, gw_coordinator_endpoint, gw_coordinator_path) = explode_connection_string(gw_target_connection)
+
 # lock file suffix
 gw_lock_file_suffix = os.environ.get('gw_lock_file_suffix', '.lock')
 # processed file suffix
@@ -77,6 +76,9 @@ gw_error_file_suffix = os.environ.get('gw_error_file_suffix', '.err')
 gw_lock_timeout = int(os.environ.get('gw_lock_timeout', 10800))
 # ignore error files and rerun batches with errors
 gw_ignore_error_files = bool(os.environ.get('gw_ignore_error_files', False))
+
+# maximal wait time for staggering start
+gw_max_time_wait_staggering = int(os.environ.get('gw_max_time_wait_staggering',60))
 
 
 # component interface
@@ -89,18 +91,18 @@ s3source = s3fs.S3FileSystem(
     secret=gw_source_secret_access_key,
     client_kwargs={'endpoint_url': gw_source_endpoint})
 
-if gw_target_endpoint is not None:
+if gw_target_connection is not None:
     s3target = s3fs.S3FileSystem(
         anon=False,
         key=gw_target_access_key_id,
         secret=gw_target_secret_access_key,
         client_kwargs={'endpoint_url': gw_target_endpoint})
 else:
-    logging.debug('Using source bucket as target bucket.')
-    gw_target_bucket = gw_source_bucket
+    logging.debug('Using source path as target path.')
+    gw_target_path = gw_source_path
     s3target = s3source
 
-if gw_coordinator_bucket is not None:
+if gw_coordinator_connection is not None:
     s3coordinator = s3fs.S3FileSystem(
         anon=False,
         key=gw_coordinator_access_key_id,
@@ -108,21 +110,28 @@ if gw_coordinator_bucket is not None:
         client_kwargs={'endpoint_url': gw_coordinator_endpoint})
 else:
     logging.debug('Using source bucket as coordinator bucket.')
-    gw_coordinator_bucket = gw_source_bucket
+    gw_coordinator_path = gw_source_path
     s3coordinator = s3source
 
 def load_batches_from_file(batch_file):
     if batch_file.endswith('.json'):
         # load batches from keys of a json file
         logging.info(f'Loading batches from json file: {batch_file}')
-        with s3source.open(Path(gw_source_bucket) / batch_file, 'r') as f:
+        with s3source.open(gw_source_path / batch_file, 'r') as f:
             batch_dict = json.load(f)
         batches = batch_dict.keys()
+
+    elif batch_file.endswith('.csv'):
+        # load batches from keys of a csv file
+        logging.info(f'Loading batches from csv file: {batch_file}')
+        s3source.get(gw_source_path / batch_file, batch_file)
+        df = pd.read_csv(batch_file, header='infer')
+        batches = df['filename'].to_list()
 
     else:
         # Load batches from comma-separated txt file
         logging.info(f'Loading comma-separated batch strings from file: {batch_file}')
-        with s3source.open(Path(gw_source_bucket) / batch_file, 'r') as f:
+        with s3source.open(gw_source_path / batch_file, 'r') as f:
             batch_string = f.read()
         batches = [b.strip() for b in batch_string.split(',')]
 
@@ -139,7 +148,7 @@ def get_files_from_pattern(file_path_patterns):
     # Iterate over comma-separated paths
     for file_path_pattern in file_path_patterns.split(','):
         logging.info(f'Get file paths from pattern: {file_path_pattern}')
-        files = s3source.glob(str(Path(gw_source_bucket) / file_path_pattern.strip()))
+        files = s3source.glob(str(Path(gw_source_path) / file_path_pattern.strip()))
         assert len(files) > 0, f"Found no files with file_path_pattern {file_path_pattern}."
         all_files.extend(files)
     logging.info(f'Found {len(all_files)} cos files')
@@ -165,7 +174,7 @@ def identify_batches_from_pattern(file_path_patterns, group_by):
 def perform_process(process, batch, cos_files):
     logging.debug(f'Check coordinator files for batch {batch}.')
     # init coordinator files
-    coordinator_dir = Path(gw_coordinator_bucket) / gw_coordinator_path
+    coordinator_dir = gw_coordinator_path
     lock_file = str(coordinator_dir / (batch + gw_lock_file_suffix))
     processed_file = str(coordinator_dir / (batch + gw_processed_file_suffix))
     error_file = str(coordinator_dir / (batch + gw_error_file_suffix))
@@ -244,7 +253,7 @@ def perform_process(process, batch, cos_files):
     local_target_files = list(target_path.glob('*'))
     logging.info(f'Uploading {len(local_target_files)} target files to COS.')
     for local_file in local_target_files:
-        cos_file = Path(gw_target_bucket) / gw_target_path / local_file.relative_to(target_path)
+        cos_file = gw_target_path / local_file.relative_to(target_path)
         logging.debug(f'Uploading {local_file} to {cos_file}')
         s3target.put(str(local_file), str(cos_file))
 
@@ -268,7 +277,7 @@ def process_wrapper(sub_process):
     time.sleep(delay)
 
     # Init coordinator dir
-    coordinator_dir = Path(gw_coordinator_bucket) / gw_coordinator_path
+    coordinator_dir =  gw_coordinator_path
     s3coordinator.makedirs(coordinator_dir, exist_ok=True)
 
     # get batches
