@@ -1,4 +1,3 @@
-
 import logging
 import os
 import argparse
@@ -24,16 +23,14 @@ def wrap_component(component_path,
 
     logging.info(f'Using backend: {backend}')
 
-
     backends = {
-      'cos_grid_wrapper' : c3.templates.cos_grid_wrapper_template,
-      'grid_wrapper' : c3.templates.grid_wrapper_template,
-      's3kv_grid_wrapper': c3.templates.s3kv_grid_wrapper_template,
+        'cos_grid_wrapper': c3.templates.cos_grid_wrapper_template,
+        'grid_wrapper': c3.templates.grid_wrapper_template,
+        's3kv_grid_wrapper': c3.templates.s3kv_grid_wrapper_template,
     }
     gw_template = backends.get(backend)
 
     logging.debug(f'Using backend template: {gw_template}')
-
 
     grid_wrapper_code = gw_template.substitute(
         component_name=component_name,
@@ -159,7 +156,7 @@ def main():
                         help='List of paths to additional files to include in the container image')
     parser.add_argument('-p', '--component_process', type=str, default='grid_process',
                         help='Name of the component sub process that is executed for each batch.')
-    parser.add_argument('-b', '--backend', type=str, default='s3kv_grid_wrapper',
+    parser.add_argument('-b', '--backend', type=str, default='grid_wrapper',
                         help='Define backend. Default: s3kv_grid_wrapper. Others: grid_wrapper, cos_grid_wrapper')
     parser.add_argument('-r', '--repository', type=str, default=None,
                         help='Container registry address, e.g. docker.io/<username>')
