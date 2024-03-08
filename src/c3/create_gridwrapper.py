@@ -26,9 +26,11 @@ def wrap_component(component_path,
     backends = {
         'local': c3.templates.grid_wrapper_template,
         'cos': c3.templates.cos_grid_wrapper_template,
+        'legacy_cos': c3.templates.legacy_cos_grid_wrapper_template,
         's3kv': c3.templates.s3kv_grid_wrapper_template,
         'grid_wrapper': c3.templates.grid_wrapper_template,
         'cos_grid_wrapper': c3.templates.cos_grid_wrapper_template,
+        'legacy_cos_grid_wrapper': c3.templates.legacy_cos_grid_wrapper_template,
         's3kv_grid_wrapper': c3.templates.s3kv_grid_wrapper_template,
     }
     gw_template = backends.get(backend)
@@ -161,7 +163,7 @@ def main():
     parser.add_argument('-p', '--component_process', type=str, default='grid_process',
                         help='Name of the component sub process that is executed for each batch.')
     parser.add_argument('-b', '--backend', type=str, default='local',
-                        help='Define backend. Default: local. Others: cos, s3kv')
+                        help='Define backend. Default: local. Others: cos, s3kv, legacy_cos (with automatic file download/upload)')
     parser.add_argument('-r', '--repository', type=str, default=None,
                         help='Container registry address, e.g. docker.io/<username>')
     parser.add_argument('-v', '--version', type=str, default=None,
