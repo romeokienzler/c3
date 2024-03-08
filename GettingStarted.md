@@ -553,7 +553,7 @@ def grid_process(batch_id, parameter1, parameter2, *args, **kwargs):
 
 You might want to add `*args, **kwargs` to avoid errors, if not all interface variables are used in the grid process.
 Note that the operator script is imported by the grid wrapper script. Therefore, all code in the script is executed. 
-It is recommended to avoid executions in the code and to use a main block if the script is also used as a single operator.
+If the script is also used as a single operator, it is recommended to check for `__main__` to avoid executions when the code is imported by the grid wrapper.
 
 ```python
 if __name__ == '__main__':
@@ -564,17 +564,18 @@ Note that the grid computing is currently not implemented for R scripts.
 
 ### 5.2 Compile a grid wrapper with C3
 
-The compilation is similar to an operator. Additionally, the name of the grid process is passed to `create_grid_wrapper.py` using `--process` or `-p`.    
+The compilation is similar to an operator. Additionally, the name of the grid process is passed to `create_gridwrapper.py` using `--process` or `-p` (default: `"grid_process"`) 
+and a backend for the coordinator is selected with `--backend` or `-b` (default: `"local"`).    
 
 ```sh
-c3_create_gridwrapper -r "<registry>/<namespace>" --process "grid_process" "<my-operator-script>.py" "<additional_file1>" "<additional_file2>" 
+c3_create_gridwrapper -r "<registry>/<namespace>" -p "grid_process" -b "local" "<my-operator-script>.py" "<additional_file1>" "<additional_file2>" 
 ```
 
-C3 also includes a grid computing pattern for Cloud Object Storage (COS). You can create a COS grid wrapper by adding a `--cos` flag. 
-The COS grid wrapper downloads all files of a batch to local storage, compute the process, and uploads the output files to COS. 
-Note that the COS grid wrapper requires the file paths to include the batch id to be identified, see details in the next subsection. 
+C3 supports three backends for the coordination: Coordinator files on a shared local storage (`"local"`), on COS (`"cos"`), or as a key-value storage on S3 (`"s3kv"`).
 
-The created files include a `gw_<my-operator-script>.py` file that includes the generated code for the grid wrapper (`cgw_<my-operator-script>.py` for the COS version). 
+Note, that the backend `"legacy_cos"` also handles downloading and uploading files from COS. We removed this functionality to simplify the grid wrapper.
+
+The grid wrapper creates a temporary file `gw_<my-operator-script>.py` which is copied to the container image and deleted.  
 Similar to an operator, `gw_<my-operator-script>.yaml`, `gw_<my-operator-script>.cwl`, and `gw_<my-operator-script>.job.yaml` are created.
 
 
@@ -582,38 +583,23 @@ Similar to an operator, `gw_<my-operator-script>.yaml`, `gw_<my-operator-script>
 
 The grid wrapper uses coordinator files to split up the batch processes between different pods. 
 Therefore, each pod needs access to a shared persistent volume, see [storage](#storage).
-Alternatively, you can use the COS grid wrapper which uses a coordinator path in COS.
+Alternatively, you can use the COS or S3kv grid wrapper which uses a coordinator in S3.
 
 The grid wrapper adds specific variables to the `job.yaml`, that define the batches and some coordination settings.
 
-First, you can define the list of batches in a file and pass `gw_batch_file` to the grid wrapper. 
-You can use either a txt file with a comma-separated list of strings or a json file with the keys being the batch ids.
-Alternatively, the batch ids can be defined by a file name pattern via `gw_file_path_pattern` and `gw_group_by`.
-You can provide multiple patterns via a comma-separated list and the patterns can include wildcards like `*` or `?` to find all relevant files.
-`gw_group_by` is code that extracts the batch id from a file name by merging the file name string with the code string and passing it to `eval()`.  
-Assuming, we have the file names `file-from-batch-42-metadata.json` and `second_file-42-image.png`. 
-The code `gw_group_by = ".split('-')[-2]"` extracts the batch `42` from both files.
-You can also to use something like `"[-15:-10]"` or `".split('/')[-1].split('.')[0]"`.
-`gw_group_by` is ignored if you provide `gw_batch_file`. 
-Be aware that the file names need to include the batch name if you are using `gw_group_by` or the COS version 
-(because files are downloaded based on a match with the batch id).    
+First, you can define the list of batch ids in a file and pass `gw_batch_file` to the grid wrapper. 
+You can use either a `txt` file with a comma-separated list of strings, a `json` file with the keys being the batch ids, or a `csv` file with `gw_batch_file_col_name` being the column with the batch ids.
+`gw_batch_file` can be a local path, a path within the coordinator bucket or a COS connection to a file (`cos://<access_key_id>:<access_secret_key>@<endpoint>/<bucket>/<path_to>/<batch_file>`).
 
-Second, you need to define `gw_coordinator_path` and optionally other coordinator variables. 
-The `gw_coordinator_path` is a path to a persistent and shared directory that is used by the pods to lock batches and mark them as processed.
-`gw_lock_file_suffix` and similar variables are the suffixes for coordinator files (default: `.lock`, `.processed`, and `.err`).
-`gw_lock_timeout` defines the time in seconds until other pods remove the `.lock` file from batches that might be struggling (default `3600`). 
-You need to increase `gw_lock_timeout` to avoid multiple processing if batch processes run very long. 
+Second, you need to define a `gw_coordinator_path` or `gw_coordinator_connection`.
+The `gw_coordinator_path` is used in the `local` version. It is a path to a persistent and shared directory that is used by the pods to lock batches and mark them as processed.
+`gw_coordinator_connection` is used in the `cos` and `s3kv` version. It defines a connection to a directory on COS: `cos://<access_key_id>:<access_secret_key>@<endpoint>/<bucket>/<path_to_directory>`.
+The coordinator uses files with specific suffixes: `.lock`, `.processed`, and `.err`.
+`gw_lock_timeout` defines the time in seconds until other pods remove the `.lock` file from batches that might be struggling (default `10800`). 
+If your processes run very long, you can increase `gw_lock_timeout` to avoid duplicated processing of batches.
 By default, pods skip batches with `.err` files. You can set `gw_ignore_error_files` to `True` after you fixed the error.
 
-If your using the COS grid wrapper, further variables are required. 
-You can provide a comma-separated list of additional files that should be downloaded COS using `gw_additional_source_files`.
-All batch files and additional files are download to an input directory, defined via `gw_local_input_path` (default: `input`). 
-Similar, all files in `gw_local_target_path` are uploaded to COS after the batch processing (default: `target`).
-
-Furthermore, `gw_source_access_key_id`, `gw_source_secret_access_key`, `gw_source_endpoint`, and `gw_source_bucket` define the COS bucket to the source files.
-You can specify other buckets for the coordinator and target files. 
-If the buckets are similar to the source bucket, you just need to provide `gw_target_path` and `gw_coordinator_path` and remove the other variables from the `job.yaml`.  
-It is recommended to use [secrets](#secrets) for the access key and secret.
+The grid wrapper currently does not support [secrets](#secrets) for the access key and secret within a connection.
 
 Lastly, you want to add the number of parallel pods by adding `parallelism : <num pods>` to the `job.yaml`.
 
