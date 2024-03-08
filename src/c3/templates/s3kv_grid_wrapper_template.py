@@ -500,15 +500,15 @@ class S3KV:
 #-----------------------------------------------------------
 
 
-def explode_connection_string(cs):
+def explode_connection_string(cs)
     if cs is None:
-        return None
+        return None, None, None, None
     if cs.startswith('cos') or cs.startswith('s3'):
         buffer=cs.split('://')[1]
         access_key_id=buffer.split('@')[0].split(':')[0]
         secret_access_key=buffer.split('@')[0].split(':')[1]
         endpoint=f"https://{buffer.split('@')[1].split('/')[0]}"
-        path='/'.join(buffer.split('@')[1].split('/')[1:])
+        path=buffer.split('@')[1].split('/', 1)[1]
         return (access_key_id, secret_access_key, endpoint, path)
     else:
         return (None, None, None, cs)
@@ -518,7 +518,9 @@ def explode_connection_string(cs):
 
 # File with batches. Provided as a comma-separated list of strings,  keys in a json dict or single column CSV with 'filename' has header. Either local path as [cos|s3]://user:pw@endpoint/path
 gw_batch_file = os.environ.get('gw_batch_file', None)
-(gw_batch_file_access_key_id, gw_batch_secret_access_key, gw_batch_endpoint, gw_batch_file) = explode_connection_string(gw_batch_file)
+(gw_batch_file_access_key_id, gw_batch_file_secret_access_key, gw_batch_file_endpoint, gw_batch_file) = explode_connection_string(gw_batch_file)
+# Optional column name for a csv batch file (default: 'filename')
+gw_batch_file_col_name = os.environ.get('gw_batch_file_col_name', 'filename')
 
 # cos gw_coordinator_connection
 gw_coordinator_connection = os.environ.get('gw_coordinator_connection')
@@ -531,19 +533,40 @@ gw_max_time_wait_staggering = int(os.environ.get('gw_max_time_wait_staggering',6
 #${component_interface}
 
 def load_batches_from_file(batch_file):
-    s3source = s3fs.S3FileSystem(
+    # Download batch file from s3
+    s3_batch_file = s3fs.S3FileSystem(
         anon=False,
         key=gw_batch_file_access_key_id,
-        secret=gw_batch_secret_access_key,
-        client_kwargs={'endpoint_url': gw_batch_endpoint})
+        secret=gw_batch_file_secret_access_key,
+        client_kwargs={'endpoint_url': gw_batch_file_endpoint})
+    s3_batch_file.get(batch_file, batch_file)
 
-    # load batches from keys of a csv file
-    logging.info(f'Loading batches from csv file: {batch_file}')
-    s3source.get(batch_file, batch_file)
-    df = pd.read_csv(batch_file, header='infer')
-    batches = df['filename'].to_list()
+    if batch_file.endswith('.json'):
+        # load batches from keys of a json file
+        logging.info(f'Loading batches from json file: {batch_file}')
+        with open(batch_file, 'r') as f:
+            batch_dict = json.load(f)
+        batches = batch_dict.keys()
 
+    elif batch_file.endswith('.csv'):
+        # load batches from keys of a csv file
+        logging.info(f'Loading batches from csv file: {batch_file}')
+        df = pd.read_csv(batch_file, header='infer')
+        assert gw_batch_file_col_name in df.columns, \
+            f'gw_batch_file_col_name {gw_batch_file_col_name} not in columns of batch file {batch_file}'
+        batches = df[gw_batch_file_col_name].to_list()
 
+    elif batch_file.endswith('.txt'):
+        # Load batches from comma-separated txt file
+        logging.info(f'Loading comma-separated batch strings from file: {batch_file}')
+        with open(batch_file, 'r') as f:
+            batch_string = f.read()
+        batches = [b.strip() for b in batch_string.split(',')]
+    else:
+        raise ValueError(f'C3 only supports batch files of type '
+                         f'json (batches = dict keys), '
+                         f'csv (batches = column values), or '
+                         f'txt (batches = comma-seperated list).')
 
     logging.info(f'Loaded {len(batches)} batches')
     logging.debug(f'List of batches: {batches}')
@@ -577,7 +600,7 @@ def perform_process(process, batch, coordinator):
     try:
         process(batch, ${component_inputs})
     except Exception as err:
-        logging.error(f'{type(err).__name__} in batch {batch_id}: {err}')
+        logging.exception(err)
         coordinator.add(batch_id,f"{type(err).__name__} in batch {batch_id}: {err}")
         logging.error(f'Continue processing.')
         return
@@ -605,7 +628,14 @@ def process_wrapper(sub_process):
     for batch in batches:
         perform_process(sub_process, batch, coordinator)
 
-    
+    # Check and log status of batches
+    processed_status = sum(coordinator.get(batch_id) == 'processed' for batch_id in batches)
+    lock_status = sum(coordinator.get(batch_id) == 'locked' for batch_id in batches)
+    exists_status = sum(coordinator.key_exists(batch_id) for batch_id in batches)
+    error_status = exists_status - processed_status - lock_status
+
+    logging.info(f'Finished current process. Status batches: '
+                 f'{processed_status} processed / {lock_status} locked / {error_status} errors / {len(batches)} total')
 
 
 if __name__ == '__main__':

@@ -67,7 +67,7 @@ gw_target_connection = os.environ.get('gw_target_connection')
 
 # cos gw_coordinator_connection
 gw_coordinator_connection = os.environ.get('gw_coordinator_connection')
-(gw_coordinator_access_key_id, gw_coordinator_secret_access_key, gw_coordinator_endpoint, gw_coordinator_path) = explode_connection_string(gw_target_connection)
+(gw_coordinator_access_key_id, gw_coordinator_secret_access_key, gw_coordinator_endpoint, gw_coordinator_path) = explode_connection_string(gw_coordinator_connection)
 
 # lock file suffix
 gw_lock_file_suffix = os.environ.get('gw_lock_file_suffix', '.lock')
