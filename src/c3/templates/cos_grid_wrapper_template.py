@@ -63,7 +63,7 @@ suffix_error = '.err'
 # component interface
 ${component_interface}
 
-# init s3
+# Init s3
 s3coordinator = s3fs.S3FileSystem(
     anon=False,
     key=gw_coordinator_access_key_id,
@@ -80,21 +80,18 @@ if gw_batch_file_access_key_id is not None:
 else:
     logging.debug('Loading batch file from source s3.')
     s3batch_file = s3coordinator
-    # TODO: Fix this somewhere else
-    # Adding coordinator bucket
-    gw_batch_file = str(gw_coordinator_path.split('/')[0] / gw_batch_file)
 
 
 def load_batches_from_file(batch_file):
     if batch_file.endswith('.json'):
-        # load batches from keys of a json file
+        # Load batches from keys of a json file
         logging.info(f'Loading batches from json file: {batch_file}')
         with open(batch_file, 'r') as f:
             batch_dict = json.load(f)
         batches = batch_dict.keys()
 
     elif batch_file.endswith('.csv'):
-        # load batches from keys of a csv file
+        # Load batches from keys of a csv file
         logging.info(f'Loading batches from csv file: {batch_file}')
         df = pd.read_csv(batch_file, header='infer')
         assert gw_batch_file_col_name in df.columns, \
@@ -121,13 +118,13 @@ def load_batches_from_file(batch_file):
 
 def perform_process(process, batch):
     logging.debug(f'Check coordinator files for batch {batch}.')
-    # init coordinator files
+    # Init coordinator files
     lock_file = str(gw_coordinator_path / (batch + suffix_lock))
     processed_file = str(gw_coordinator_path / (batch + suffix_processed))
     error_file = str(gw_coordinator_path / (batch + suffix_error))
 
     if s3coordinator.exists(lock_file):
-        # remove strugglers
+        # Remove strugglers
         last_modified = s3coordinator.info(lock_file)['LastModified']
         if (datetime.now(last_modified.tzinfo) - last_modified).total_seconds() > gw_lock_timeout:
             logging.info(f'Lock file {lock_file} is expired.')
@@ -181,17 +178,19 @@ def process_wrapper(sub_process):
     # Init coordinator dir
     s3coordinator.makedirs(gw_coordinator_path, exist_ok=True)
 
-    # download batch file
+    # Download batch file
+    if s3batch_file.exists(gw_batch_file):
+        s3batch_file.get(gw_batch_file, gw_batch_file)
     if not os.path.isfile(gw_batch_file):
+        # Download batch file from s3 coordinator
         cos_gw_batch_file = str(gw_coordinator_path.split([0]) / gw_batch_file)
-        # Download batch file from s3
         if s3batch_file.exists(cos_gw_batch_file):
             s3batch_file.get(gw_batch_file, gw_batch_file)
         else:
             raise ValueError("Cannot identify batches. Provide valid gw_batch_file "
                              "(local path, path within coordinator bucket, or s3 connection to batch file).")
 
-    # get batches
+    # Get batches
     batches = load_batches_from_file(gw_batch_file)
 
     # Iterate over all batches
@@ -208,7 +207,7 @@ def process_wrapper(sub_process):
 
     if error_status:
         logging.error(f'Found errors! Resolve errors and rerun operator with gw_ignore_error_files=True.')
-        # print all error messages
+        # Print all error messages
         for error_file in s3coordinator.glob(str(gw_coordinator_path / ('**/*' + suffix_error))):
             with s3coordinator.open(error_file, 'r') as f:
                 logging.error(f.read())
