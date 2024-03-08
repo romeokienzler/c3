@@ -4,6 +4,7 @@ ${component_name} got wrapped by grid_wrapper, which wraps any CLAIMED component
 CLAIMED component description: ${component_description}
 """
 
+# pip install s3fs boto3 pandas
 # component dependencies
 # ${component_dependencies}
 
@@ -500,7 +501,7 @@ class S3KV:
 #-----------------------------------------------------------
 
 
-def explode_connection_string(cs)
+def explode_connection_string(cs):
     if cs is None:
         return None, None, None, None
     if cs.startswith('cos') or cs.startswith('s3'):

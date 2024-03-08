@@ -4,7 +4,7 @@ ${component_name} got wrapped by cos_grid_wrapper, which wraps any CLAIMED compo
 CLAIMED component description: ${component_description}
 """
 
-# pip install s3fs
+# pip install s3fs pandas
 # component dependencies
 # ${component_dependencies}
 
