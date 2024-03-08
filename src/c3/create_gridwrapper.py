@@ -24,8 +24,11 @@ def wrap_component(component_path,
     logging.info(f'Using backend: {backend}')
 
     backends = {
-        'cos_grid_wrapper': c3.templates.cos_grid_wrapper_template,
+        'local': c3.templates.grid_wrapper_template,
+        'cos': c3.templates.cos_grid_wrapper_template,
+        's3kv': c3.templates.s3kv_grid_wrapper_template,
         'grid_wrapper': c3.templates.grid_wrapper_template,
+        'cos_grid_wrapper': c3.templates.cos_grid_wrapper_template,
         's3kv_grid_wrapper': c3.templates.s3kv_grid_wrapper_template,
     }
     gw_template = backends.get(backend)
@@ -71,7 +74,8 @@ def get_component_elements(file_path):
     type_to_func = {'String': '', 'Boolean': 'bool', 'Integer': 'int', 'Float': 'float'}
     for variable, d in inputs.items():
         interface += f"# {d['description']}\n"
-        if d['type'] == 'String' and d['default'] is not None and d['default'][0] not in '\'\"':
+        if (d['type'] == 'String' and d['default'] is not None and
+            (d['default'] == '' or d['default'][0] not in '\'\"')):
             # Add quotation marks
             d['default'] = "'" + d['default'] + "'"
         interface += f"component_{variable} = {type_to_func[d['type']]}(os.getenv('{variable}', {d['default']}))\n"
@@ -156,8 +160,8 @@ def main():
                         help='List of paths to additional files to include in the container image')
     parser.add_argument('-p', '--component_process', type=str, default='grid_process',
                         help='Name of the component sub process that is executed for each batch.')
-    parser.add_argument('-b', '--backend', type=str, default='grid_wrapper',
-                        help='Define backend. Default: s3kv_grid_wrapper. Others: grid_wrapper, cos_grid_wrapper')
+    parser.add_argument('-b', '--backend', type=str, default='local',
+                        help='Define backend. Default: local. Others: cos, s3kv')
     parser.add_argument('-r', '--repository', type=str, default=None,
                         help='Container registry address, e.g. docker.io/<username>')
     parser.add_argument('-v', '--version', type=str, default=None,

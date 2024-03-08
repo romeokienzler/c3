@@ -39,6 +39,8 @@ gw_error_file_suffix = os.environ.get('gw_error_file_suffix', '.err')
 gw_lock_timeout = int(os.environ.get('gw_lock_timeout', 10800))
 # ignore error files and rerun batches with errors
 gw_ignore_error_files = bool(os.environ.get('gw_ignore_error_files', False))
+# maximal wait time for staggering start
+gw_max_time_wait_staggering = int(os.environ.get('gw_max_time_wait_staggering', 60))
 
 # component interface
 ${component_interface}
@@ -161,7 +163,7 @@ def perform_process(process, batch):
 
 
 def process_wrapper(sub_process):
-    delay = random.randint(1, 60)
+    delay = random.randint(0, gw_max_time_wait_staggering)
     logging.info(f'Staggering start, waiting for {delay} seconds')
     time.sleep(delay)
 
