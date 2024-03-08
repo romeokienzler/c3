@@ -25,8 +25,24 @@ import pandas as pd
 from ${component_name} import *
 
 
+def explode_connection_string(cs):
+    if cs is None:
+        return None, None, None, None
+    elif cs.startswith('cos') or cs.startswith('s3'):
+        buffer=cs.split('://', 1)[1]
+        access_key_id=buffer.split('@')[0].split(':')[0]
+        secret_access_key=buffer.split('@')[0].split(':')[1]
+        endpoint = f"https://{buffer.split('@')[1].split('/')[0]}"
+        path=buffer.split('@')[1].split('/', 1)[1]
+        return (access_key_id, secret_access_key, endpoint, path)
+    else:
+        return (None, None, None, cs)
+        # TODO consider cs as secret and grab connection string from kubernetes
+
+
 # File containing batches. Provided as a comma-separated list of strings or keys in a json dict. All batch file names must contain the batch name.
 gw_batch_file = os.environ.get('gw_batch_file', None)
+(gw_batch_file_access_key_id, gw_batch_file_secret_access_key, gw_batch_file_endpoint, gw_batch_file) = explode_connection_string(gw_batch_file)
 # Optional column name for a csv batch file (default: 'filename')
 gw_batch_file_col_name = os.environ.get('gw_batch_file_col_name', 'filename')
 # file path pattern like your/path/**/*.tif. Multiple patterns can be separated with commas. It is ignored if gw_batch_file is provided.
@@ -40,23 +56,6 @@ gw_additional_source_files = os.environ.get('gw_additional_source_files', '')
 gw_local_input_path = os.environ.get('gw_local_input_path', 'input')
 # upload local target files to target cos path
 gw_local_target_path = os.environ.get('gw_local_target_path', 'target')
-
-
-def explode_connection_string(cs):
-    if cs is None:
-        return None, None, None, None
-    elif cs.startswith('cos') or cs.startswith('s3'):
-        buffer=cs.split('://')[1]
-        access_key_id=buffer.split('@')[0].split(':')[0]
-        secret_access_key=buffer.split('@')[0].split(':')[1]
-        endpoint=buffer.split('@')[1].split('/')[0]
-        path='/'.join(buffer.split('@')[1].split('/')[1:])
-        return (access_key_id, secret_access_key, endpoint, path)
-    else:
-        # TODO consider cs as secret and grab connection string from kubernetes
-        raise NotImplementedError
-
-
 
 # cos gw_source_connection
 gw_source_connection = os.environ.get('gw_source_connection')
@@ -119,6 +118,18 @@ else:
     logging.debug('Using source bucket as coordinator bucket.')
     gw_coordinator_path = gw_source_path
     s3coordinator = s3source
+
+if gw_batch_file_access_key_id is not None:
+    s3batch_file = s3fs.S3FileSystem(
+        anon=False,
+        key=gw_batch_file_access_key_id,
+        secret=gw_batch_file_secret_access_key,
+        client_kwargs={'endpoint_url': gw_batch_file_endpoint})
+else:
+    logging.debug('Loading batch file from source s3.')
+    s3batch_file = s3source
+    gw_batch_file = str(gw_source_path / gw_batch_file)
+
 
 def load_batches_from_file(batch_file):
     if batch_file.endswith('.json'):
@@ -298,8 +309,11 @@ def process_wrapper(sub_process):
     cos_gw_batch_file = str(gw_source_path / gw_batch_file)
     if (gw_batch_file is not None and (os.path.isfile(gw_batch_file) or s3source.exists(cos_gw_batch_file))):
         if not os.path.isfile(gw_batch_file):
-            # Download batch file
-            s3source.get(cos_gw_batch_file, gw_batch_file)
+            # Download batch file from s3
+            if s3batch_file.exists(gw_batch_file):
+                s3batch_file.get(gw_batch_file, gw_batch_file)
+            else:
+                s3batch_file.get(str(gw_source_path / gw_batch_file), gw_batch_file)
         batches = load_batches_from_file(gw_batch_file)
         if gw_file_path_pattern:
             cos_files = get_files_from_pattern(gw_file_path_pattern)
