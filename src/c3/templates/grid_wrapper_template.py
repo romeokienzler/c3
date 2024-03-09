@@ -4,6 +4,8 @@ ${component_name} got wrapped by grid_wrapper, which wraps any CLAIMED component
 CLAIMED component description: ${component_description}
 """
 
+# pip install pandas
+
 # component dependencies
 # ${component_dependencies}
 
@@ -15,104 +17,65 @@ import time
 import glob
 from pathlib import Path
 import pandas as pd
-import s3fs
 
 # import component code
 from ${component_name} import *
 
 
-explode_connection_string(cs):
-    if cs is None:
-        return None
-    if cs.startswith('cos') or cs.startswith('s3'):
-        buffer=cs.split('://')[1]
-        access_key_id=buffer.split('@')[0].split(':')[0]
-        secret_access_key=buffer.split('@')[0].split(':')[1]
-        endpoint=buffer.split('@')[1].split('/')[0]
-        path='/'.join(buffer.split('@')[1].split('/')[1:])
-        return (access_key_id, secret_access_key, endpoint, path)
-    else:
-        return (None, None, None, cs)
-        # TODO consider cs as secret and grab connection string from kubernetes
-
-
-
-# File with batches. Provided as a comma-separated list of strings,  keys in a json dict or single column CSV with 'filename' has header. Either local path as [cos|s3]://user:pw@endpoint/path
+# File with batches. Provided as a comma-separated list of strings, keys in a json dict or single column CSV with 'filename' has header.
 gw_batch_file = os.environ.get('gw_batch_file', None)
-(gw_batch_file_access_key_id, gw_batch_secret_access_key, gw_batch_endpoint, gw_batch_file) = explode_connection_string(gw_batch_file):
-
-
+# Optional column name for a csv batch file (default: 'filename')
+gw_batch_file_col_name = os.environ.get('gw_batch_file_col_name', 'filename')
 # file path pattern like your/path/**/*.tif. Multiple patterns can be separated with commas. Is ignored if gw_batch_file is provided.
 gw_file_path_pattern = os.environ.get('gw_file_path_pattern', None)
 # pattern for grouping file paths into batches like ".split('.')[-1]". Is ignored if gw_batch_file is provided.
 gw_group_by = os.environ.get('gw_group_by', None)
 # path to grid wrapper coordinator directory
 gw_coordinator_path = os.environ.get('gw_coordinator_path')
-# lock file suffix
-gw_lock_file_suffix = os.environ.get('gw_lock_file_suffix', '.lock')
-# processed file suffix
-gw_processed_file_suffix = os.environ.get('gw_lock_file_suffix', '.processed')
-# error file suffix
-gw_error_file_suffix = os.environ.get('gw_error_file_suffix', '.err')
+gw_coordinator_path = Path(gw_coordinator_path)
+
 # timeout in seconds to remove lock file from struggling job (default 3 hours)
 gw_lock_timeout = int(os.environ.get('gw_lock_timeout', 10800))
 # ignore error files and rerun batches with errors
 gw_ignore_error_files = bool(os.environ.get('gw_ignore_error_files', False))
+# maximal wait time for staggering start
+gw_max_time_wait_staggering = int(os.environ.get('gw_max_time_wait_staggering', 60))
+
+# coordinator file suffix
+suffix_lock = '.lock'
+suffix_processed = '.processed'
+suffix_error = '.err'
 
 # component interface
 ${component_interface}
 
 def load_batches_from_file(batch_file):
-    if gw_batch_file_access_key_id is not None:
-        s3source = s3fs.S3FileSystem(
-            anon=False,
-            key=gw_batch_file_access_key_id,
-            secret=gw_batch_secret_access_key,
-            client_kwargs={'endpoint_url': gw_batch_endpoint})
+    if batch_file.endswith('.json'):
+        # Load batches from keys of a json file
+        logging.info(f'Loading batches from json file: {batch_file}')
+        with open(batch_file, 'r') as f:
+            batch_dict = json.load(f)
+        batches = batch_dict.keys()
 
+    elif batch_file.endswith('.csv'):
+        # Load batches from keys of a csv file
+        logging.info(f'Loading batches from csv file: {batch_file}')
+        df = pd.read_csv(batch_file, header='infer')
+        assert gw_batch_file_col_name in df.columns, \
+            f'gw_batch_file_col_name {gw_batch_file_col_name} not in columns of batch file {batch_file}'
+        batches = df[gw_batch_file_col_name].to_list()
 
-        if batch_file.endswith('.json'):
-            # load batches from keys of a json file
-            logging.info(f'Loading batches from json file: {batch_file}')
-            with s3source.open(gw_batch_file, 'r') as f:
-                batch_dict = json.load(f)
-            batches = batch_dict.keys()
-
-        elif batch_file.endswith('.csv'):
-            # load batches from keys of a csv file
-            logging.info(f'Loading batches from csv file: {batch_file}')
-            s3source.get(batch_file, batch_file)
-            df = pd.read_csv(batch_file, header='infer')
-            batches = df['filename'].to_list()
-
-
-        else:
-            # Load batches from comma-separated txt file
-            logging.info(f'Loading comma-separated batch strings from file: {batch_file}')
-            with s3source.open(gw_batch_file, 'r') as f:
-                batch_string = f.read()
-            batches = [b.strip() for b in batch_string.split(',')]
-            
+    elif batch_file.endswith('.txt'):
+        # Load batches from comma-separated txt file
+        logging.info(f'Loading comma-separated batch strings from file: {batch_file}')
+        with open(batch_file, 'r') as f:
+            batch_string = f.read()
+        batches = [b.strip() for b in batch_string.split(',')]
     else:
-        if batch_file.endswith('.json'):
-            # load batches from keys of a json file
-            logging.info(f'Loading batches from json file: {batch_file}')
-            with open(batch_file, 'r') as f:
-                batch_dict = json.load(f)
-            batches = batch_dict.keys()
-
-        elif batch_file.endswith('.csv'):
-            # load batches from keys of a csv file
-            logging.info(f'Loading batches from csv file: {batch_file}')
-            df = pd.read_csv(batch_file, header='infer')
-            batches = df['filename'].to_list()
-
-        else:
-            # Load batches from comma-separated txt file
-            logging.info(f'Loading comma-separated batch strings from file: {batch_file}')
-            with open(batch_file, 'r') as f:
-                batch_string = f.read()
-            batches = [b.strip() for b in batch_string.split(',')]
+        raise ValueError(f'C3 only supports batch files of type '
+                         f'json (batches = dict keys), '
+                         f'csv (batches = column values), or '
+                         f'txt (batches = comma-seperated list).')
 
     logging.info(f'Loaded {len(batches)} batches')
     logging.debug(f'List of batches: {batches}')
@@ -147,9 +110,9 @@ def identify_batches_from_pattern(file_path_patterns, group_by):
 def perform_process(process, batch):
     logging.debug(f'Check coordinator files for batch {batch}.')
     # init coordinator files
-    lock_file = Path(gw_coordinator_path) / (batch + gw_lock_file_suffix)
-    error_file = Path(gw_coordinator_path) / (batch + gw_error_file_suffix)
-    processed_file = Path(gw_coordinator_path) / (batch + gw_processed_file_suffix)
+    lock_file = gw_coordinator_path / (batch + suffix_lock)
+    error_file = gw_coordinator_path / (batch + suffix_error)
+    processed_file = gw_coordinator_path / (batch + suffix_processed)
 
     if lock_file.exists():
         # remove strugglers
@@ -180,23 +143,13 @@ def perform_process(process, batch):
     try:
         target_files = process(batch, ${component_inputs})
     except Exception as err:
-        logging.error(f'{type(err).__name__} in batch {batch}: {err}')
+        logging.exception(err)
         # Write error to file
         with open(error_file, 'w') as f:
             f.write(f"{type(err).__name__} in batch {batch}: {err}")
         lock_file.unlink()
         logging.error(f'Continue processing.')
         return
-
-    # optional verify target files
-    if target_files is not None:
-        if isinstance(target_files, str):
-            target_files = [target_files]
-        for target_file in target_files:
-            if not os.path.exists(target_file):
-                logging.error(f'Target file {target_file} does not exist for batch {batch}.')
-    else:
-        logging.info(f'Cannot verify batch {batch} (target files not provided).')
 
     logging.info(f'Finished Batch {batch}.')
     processed_file.touch()
@@ -206,23 +159,23 @@ def perform_process(process, batch):
         lock_file.unlink()
     else:
         logging.warning(f'Lock file {lock_file} was removed by another process. '
-                        f'Consider increasing gw_lock_timeout (currently {gw_lock_timeout}s) to repeated processing.')
+                        f'Consider increasing gw_lock_timeout to avoid repeated processing (currently {gw_lock_timeout}s).')
 
 
 
 def process_wrapper(sub_process):
-    delay = random.randint(1, 60)
+    delay = random.randint(0, gw_max_time_wait_staggering)
     logging.info(f'Staggering start, waiting for {delay} seconds')
     time.sleep(delay)
 
     # Init coordinator dir
-    coordinator_dir = Path(gw_coordinator_path)
-    coordinator_dir.mkdir(exist_ok=True, parents=True)
+    gw_coordinator_path.mkdir(exist_ok=True, parents=True)
 
     # get batches
     if gw_batch_file is not None and os.path.isfile(gw_batch_file):
         batches = load_batches_from_file(gw_batch_file)
     elif gw_file_path_pattern is not None and gw_group_by is not None:
+        logging.warning("gw_file_path_pattern and gw_group_by are legacy and might be removed in a future release.")
         batches = identify_batches_from_pattern(gw_file_path_pattern, gw_group_by)
     else:
         raise ValueError("Cannot identify batches. "
@@ -233,17 +186,17 @@ def process_wrapper(sub_process):
         perform_process(sub_process, batch)
 
     # Check and log status of batches
-    processed_status = [(coordinator_dir / (batch + gw_processed_file_suffix)).exists() for batch in batches]
-    lock_status = [(coordinator_dir / (batch + gw_lock_file_suffix)).exists() for batch in batches]
-    error_status = [(coordinator_dir / (batch + gw_error_file_suffix)).exists() for batch in batches]
+    processed_status = sum((gw_coordinator_path / (batch + suffix_processed)).exists() for batch in batches)
+    lock_status = sum((gw_coordinator_path / (batch + suffix_lock)).exists() for batch in batches)
+    error_status = sum((gw_coordinator_path / (batch + suffix_error)).exists() for batch in batches)
 
     logging.info(f'Finished current process. Status batches: '
-                 f'{sum(processed_status)} processed / {sum(lock_status)} locked / {sum(error_status)} errors / {len(processed_status)} total')
+                 f'{processed_status} processed / {lock_status} locked / {error_status} errors / {len(batches)} total')
 
-    if sum(error_status):
+    if error_status:
         logging.error(f'Found errors! Resolve errors and rerun operator with gw_ignore_error_files=True.')
         # print all error messages
-        for error_file in coordinator_dir.glob('**/*' + gw_error_file_suffix):
+        for error_file in gw_coordinator_path.glob('**/*' + suffix_error):
             with open(error_file, 'r') as f:
                 logging.error(f.read())
 

@@ -136,24 +136,26 @@ def test_create_operator(
 test_create_gridwrapper_input = [
     (
         TEST_SCRIPT_PATH,
-        None,
         'process',
         [TEST_NOTEBOOK_PATH],
     ),
     (
+        TEST_SCRIPT_PATH,
+        'process',
+        [TEST_NOTEBOOK_PATH, '--backend', 'cos'],
+    ),
+    (
         TEST_NOTEBOOK_PATH,
-        DUMMY_REPO,
         'your_function',
         [],
     ),
 ]
 @pytest.mark.parametrize(
-    "file_path, repository, process, args",
+    "file_path, process, args",
     test_create_gridwrapper_input,
 )
 def test_create_gridwrapper(
         file_path: str,
-        repository: str,
         process: str,
         args: List,
 ):
@@ -166,6 +168,6 @@ def test_create_gridwrapper(
     gw_file.with_suffix('.yaml').unlink()
     gw_file.with_suffix('.job.yaml').unlink()
     gw_file.with_suffix('.cwl').unlink()
-    image_name = f"{repository}/claimed-gw-{file_path.rsplit('.')[0].replace('_', '-')}:test"
+    image_name = f"claimed-gw-{file_path.rsplit('.')[0].replace('_', '-')}:test"
     # TODO: Modify subprocess call to test grid wrapper
     # subprocess.run(['docker', 'run', image_name], check=True)

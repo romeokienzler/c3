@@ -37,10 +37,13 @@ class Pythonscript:
                         logging.debug(f'Interface: No description for variable {env_name} provided.')
                     if re.search(r'=\s*int\(\s*os', line):
                         type = 'Integer'
+                        default = default.strip('\"\'')
                     elif re.search(r'=\s*float\(\s*os', line):
                         type = 'Float'
+                        default = default.strip('\"\'')
                     elif re.search(r'=\s*bool\(\s*os', line):
                         type = 'Boolean'
+                        default = default.strip('\"\'')
                     else:
                         type = 'String'
                     return_value[env_name] = {
