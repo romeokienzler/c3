@@ -181,6 +181,8 @@ def main():
                         help='Exclude logging code from component setup code')
     parser.add_argument('--keep-generated-files', action='store_true',
                         help='Do not delete temporary generated files.')
+    parser.add_argument('--platform', type=str, default='linux/amd64',
+                        help='Select image platform, default is linux/amd64. Alternativly, select linux/arm64".')
 
     args = parser.parse_args()
 
@@ -227,6 +229,7 @@ def main():
             rename_files=args.rename,
             skip_logging=args.skip_logging,
             keep_generated_files=args.keep_generated_files,
+            platform=args.platform,
         )
     except Exception as err:
         logging.error('Error while generating CLAIMED grid wrapper. '
