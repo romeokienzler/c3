@@ -236,6 +236,7 @@ def create_operator(file_path: str,
                     overwrite_files=False,
                     skip_logging=False,
                     keep_generated_files=False,
+                    platform='linux/amd64',
                     ):
     logging.info('Parameters: ')
     logging.info('file_path: ' + file_path)
@@ -356,12 +357,21 @@ def create_operator(file_path: str,
             logging.warning('No repository provided. The container image is only saved locally. Add `-r <repository>` '
                             'to push the image to a container registry or run `--local_mode` to suppress this warning.')
         local_mode = True
+        repository = 'local'
+
+    if subprocess.run('docker buildx', shell=True, stdout=subprocess.PIPE).returncode == 0:
+        # Using docker buildx
+        logging.debug('Using docker buildx')
+        build_command = 'docker buildx build'
+    else:
+        logging.debug('Using docker build. Consider installing docker-buildx.')
+        build_command = 'docker build'
 
     logging.info(f'Building container image claimed-{name}:{version}')
     try:
         # Run docker build
         subprocess.run(
-            f"docker build --platform linux/amd64 -t claimed-{name}:{version} . {'--no-cache' if no_cache else ''}",
+            f"{build_command} --platform {platform} -t claimed-{name}:{version} . {'--no-cache' if no_cache else ''}",
             stdout=None if log_level == 'DEBUG' else subprocess.PIPE, check=True, shell=True
         )
         if repository is not None:
@@ -450,6 +460,9 @@ def main():
                         help='Exclude logging code from component setup code')
     parser.add_argument('--keep-generated-files', action='store_true',
                         help='Do not delete temporary generated files.')
+    parser.add_argument('--platform', type=str, default='linux/amd64',
+                        help='Select image platform, default is linux/amd64. Alternativly, select linux/arm64".')
+
     args = parser.parse_args()
 
     # Init logging
@@ -482,6 +495,7 @@ def main():
         rename_files=args.rename,
         skip_logging=args.skip_logging,
         keep_generated_files=args.keep_generated_files,
+        platform=args.platform,
     )
 
 
