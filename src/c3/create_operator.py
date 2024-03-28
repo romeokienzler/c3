@@ -60,8 +60,8 @@ def create_dockerfile(dockerfile_template, requirements, target_code, target_dir
 def create_kfp_component(name, description, repository, version, command, target_code, target_dir, file_path, inputs, outputs):
 
     inputs_list = str()
-    for name, options in inputs.items():
-        inputs_list += f'- {{name: {name}, type: {options["type"]}, description: "{options["description"]}"'
+    for input, options in inputs.items():
+        inputs_list += f'- {{name: {input}, type: {options["type"]}, description: "{options["description"]}"'
         if options['default'] is not None:
             if not options["default"].startswith('"'):
                 options["default"] = f'"{options["default"]}"'
@@ -69,8 +69,8 @@ def create_kfp_component(name, description, repository, version, command, target
         inputs_list += '}\n'
 
     outputs_list = str()
-    for name, options in outputs.items():
-        outputs_list += f'- {{name: {name}, type: String, description: "{options["description"]}"}}\n'
+    for output, options in outputs.items():
+        outputs_list += f'- {{name: {output}, type: String, description: "{options["description"]}"}}\n'
 
     parameter_list = str()
     for index, key in enumerate(list(inputs.keys()) + list(outputs.keys())):
