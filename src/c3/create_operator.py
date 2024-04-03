@@ -26,7 +26,7 @@ def create_dockerfile(dockerfile_template, requirements, target_code, target_dir
     # Check for requirements file
     for i in range(len(requirements)):
         if '-r ' in requirements[i]:
-            r_file_search = re.search('-r ~?\/?([A-Za-z0-9\/]*\.txt)', requirements[i])
+            r_file_search = re.search('-r ~?\/?([^\s]*\.txt)', requirements[i])
             if len(r_file_search.groups()):
                 # Get file from regex
                 requirements_file = r_file_search.groups()[0]
