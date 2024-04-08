@@ -22,7 +22,8 @@ from c3.templates import (python_component_setup_code, component_setup_code_wo_l
 CLAIMED_VERSION = 'V0.1'
 
 
-def create_dockerfile(dockerfile_template, requirements, target_code, target_dir, additional_files, working_dir, command):
+def create_dockerfile(dockerfile_template, dockerfile, requirements, target_code, target_dir, additional_files,
+                      working_dir, command):
     # Check for requirements file
     for i in range(len(requirements)):
         if '-r ' in requirements[i]:
@@ -52,9 +53,9 @@ def create_dockerfile(dockerfile_template, requirements, target_code, target_dir
     )
 
     logging.info('Create Dockerfile')
-    with open("Dockerfile", "w") as text_file:
+    with open(dockerfile, "w") as text_file:
         text_file.write(docker_file)
-    logging.debug('Dockerfile:\n' + docker_file)
+    logging.debug(f'{dockerfile}:\n' + docker_file)
 
 
 def create_kfp_component(name, description, repository, version, command, target_code, target_dir, file_path, inputs, outputs):
@@ -237,6 +238,7 @@ def create_operator(file_path: str,
                     skip_logging=False,
                     keep_generated_files=False,
                     platform='linux/amd64',
+                    dockerfile='Dockerfile.generated',
                     ):
     logging.info('Parameters: ')
     logging.info('file_path: ' + file_path)
@@ -345,8 +347,8 @@ def create_operator(file_path: str,
     logging.info(f'Found {len(additional_files_found)} additional files and directories\n'
                  f'{", ".join(additional_files_found)}')
 
-    create_dockerfile(dockerfile_template, requirements, target_code, target_dir, additional_files_found, working_dir,
-                      command)
+    create_dockerfile(dockerfile_template, dockerfile, requirements, target_code, target_dir, additional_files_found,
+                      working_dir, command)
 
     if version is None:
         # auto increase version based on registered images
@@ -362,10 +364,10 @@ def create_operator(file_path: str,
     if subprocess.run('docker buildx', shell=True, stdout=subprocess.PIPE).returncode == 0:
         # Using docker buildx
         logging.debug('Using docker buildx')
-        build_command = 'docker buildx build'
+        build_command = f'docker buildx build -f {dockerfile}'
     else:
         logging.debug('Using docker build. Consider installing docker-buildx.')
-        build_command = 'docker build'
+        build_command = f'docker build -f {dockerfile}'
 
     logging.info(f'Building container image claimed-{name}:{version}')
     try:
@@ -453,6 +455,8 @@ def main():
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
+    parser.add_argument('--dockerfile', type=str, default='Dockerfile.generated',
+                        help='Name or path of the generated dockerfile.')
     parser.add_argument('--local_mode', action='store_true',
                         help='Continue processing after docker errors.')
     parser.add_argument('--no-cache', action='store_true', help='Not using cache for docker build.')
@@ -496,6 +500,7 @@ def main():
         skip_logging=args.skip_logging,
         keep_generated_files=args.keep_generated_files,
         platform=args.platform,
+        dockerfile=args.dockerfile,
     )
 
 
