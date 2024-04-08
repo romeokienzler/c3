@@ -174,6 +174,8 @@ def main():
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
+    parser.add_argument('--dockerfile', type=str, default='dockerfile.generated',
+                        help='Name or path of the generated dockerfile.')
     parser.add_argument('--local_mode', action='store_true',
                         help='Continue processing after docker errors.')
     parser.add_argument('--no-cache', action='store_true', help='Not using cache for docker build.')
@@ -230,6 +232,7 @@ def main():
             skip_logging=args.skip_logging,
             keep_generated_files=args.keep_generated_files,
             platform=args.platform,
+            dockerfile=args.dockerfile,
         )
     except Exception as err:
         logging.error('Error while generating CLAIMED grid wrapper. '
