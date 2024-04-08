@@ -455,7 +455,7 @@ def main():
     parser.add_argument('-l', '--log_level', type=str, default='INFO')
     parser.add_argument('--dockerfile_template_path', type=str, default='',
                         help='Path to custom dockerfile template')
-    parser.add_argument('--dockerfile', type=str, default='dockerfile.generated',
+    parser.add_argument('--dockerfile', type=str, default='Dockerfile.generated',
                         help='Name or path of the generated dockerfile.')
     parser.add_argument('--local_mode', action='store_true',
                         help='Continue processing after docker errors.')
