@@ -4,13 +4,19 @@ import sys
 import logging
 import subprocess
 import re
+from c3.create_operator import create_cwl_component
+from c3.pythonscript import Pythonscript
+
 
 def create_containerless_operator(
         file_path,
         version,
     ):
 
-    logging.debug(f'Called create_containerless_operator with {file_path}')
+    if version is None:
+        version = 'latest'
+
+    logging.debug(f'Called create_containerless_operator {version} with {file_path}')
 
     filename, file_extension = os.path.splitext(file_path)
 
@@ -26,13 +32,19 @@ def create_containerless_operator(
                 all_pip_packages_found += (f' {pip_packages}')
     logging.info(f'all PIP packages found: {all_pip_packages_found}')
 
-
     subprocess.run(';'.join(['rm -Rf claimedenv','python -m venv claimedenv', 
                                         'source ./claimedenv/bin/activate', 
                                         f'pip install {all_pip_packages_found.strip()}',
                                         'pip list',
                                         f'zip -r {filename}.zip {file_path} claimedenv',
                                         'rm -Rf claimedenv']), shell=True)
+
+    script_data = Pythonscript(file_path)
+    inputs = script_data.get_inputs()
+    outputs = script_data.get_outputs()
+
+    create_cwl_component(filename, "containerless", version, file_path, inputs, outputs)
+
 
 
 
