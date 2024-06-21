@@ -36,7 +36,7 @@ def create_containerless_operator(
                                         'source ./claimedenv/bin/activate', 
                                         f'pip install {all_pip_packages_found.strip()}',
                                         'pip list',
-                                        f'zip -r {filename}.zip {file_path} claimedenv',
+                                        f'zip -r claimed-{filename}:{version}.zip {file_path} claimedenv',
                                         'rm -Rf claimedenv']), shell=True)
 
     script_data = Pythonscript(file_path)
