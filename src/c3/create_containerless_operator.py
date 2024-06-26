@@ -6,11 +6,12 @@ import subprocess
 import re
 from c3.create_operator import create_cwl_component
 from c3.pythonscript import Pythonscript
-
+from c3.templates import component_setup_code_wo_logging, python_component_setup_code
 
 def create_containerless_operator(
         file_path,
         version,
+        skip_logging = False
     ):
 
     if version is None:
@@ -32,13 +33,29 @@ def create_containerless_operator(
                 all_pip_packages_found += (f' {pip_packages}')
     logging.info(f'all PIP packages found: {all_pip_packages_found}')
 
+
+    # prepend init code to script
+    target_code = 'runnable.py'
+
+    if os.path.exists(target_code):
+        os.remove(target_code)
+
+    with open(file_path, 'r') as f:
+        script = f.read()
+    if skip_logging:
+        script = component_setup_code_wo_logging + script
+    else:
+        script = python_component_setup_code + script
+    with open(target_code, 'w') as f:
+        f.write(script)
+
     subprocess.run(';'.join(['rm -Rf claimedenv','python -m venv claimedenv', 
                                         'source ./claimedenv/bin/activate', 
                                         f'pip install {all_pip_packages_found.strip()}',
                                         'pip list',
-                                        f'zip -r claimed-{filename}:{version}.zip {file_path} claimedenv',
-                                        'rm -Rf claimedenv']), shell=True)
-
+                                        f'zip -r claimed-{filename}:{version}.zip {target_code} claimedenv',
+                                        'rm -Rf claimedenv',
+                                        f'rm {target_code}']), shell=True)
     script_data = Pythonscript(file_path)
     inputs = script_data.get_inputs()
     outputs = script_data.get_outputs()
