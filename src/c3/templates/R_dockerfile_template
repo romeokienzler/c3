@@ -1,4 +1,4 @@
-FROM r-base:4.3.2
+FROM ${base_image}
 USER root
 RUN apt update
 ${requirements_docker}
