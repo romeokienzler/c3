@@ -185,6 +185,8 @@ def main():
                         help='Do not delete temporary generated files.')
     parser.add_argument('--platform', type=str, default='linux/amd64',
                         help='Select image platform, default is linux/amd64. Alternativly, select linux/arm64".')
+    parser.add_argument('--image_version', type=str, default='python3.12',
+                        help='Select python or R version (defaults to python3.12).')
 
     args = parser.parse_args()
 
@@ -233,6 +235,7 @@ def main():
             keep_generated_files=args.keep_generated_files,
             platform=args.platform,
             dockerfile=args.dockerfile,
+            image_version=args.image_version,
         )
     except Exception as err:
         logging.error('Error while generating CLAIMED grid wrapper. '

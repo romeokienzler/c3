@@ -23,7 +23,7 @@ CLAIMED_VERSION = 'V0.1'
 
 
 def create_dockerfile(dockerfile_template, dockerfile, requirements, target_code, target_dir, additional_files,
-                      working_dir, command):
+                      working_dir, command, image_version):
     # Check for requirements file
     for i in range(len(requirements)):
         if '-r ' in requirements[i]:
@@ -43,7 +43,20 @@ def create_dockerfile(dockerfile_template, dockerfile, requirements, target_code
     additional_files_docker = list(map(lambda s: f"ADD {s} {working_dir}{s}", additional_files))
     additional_files_docker = '\n'.join(additional_files_docker)
 
+    # Select base image
+    if 'python' in command:
+        base_image = f"registry.access.redhat.com/ubi8/python-{image_version.strip('python').replace('.', '')}"
+    elif command == 'Rscript':
+        if 'python' in image_version:
+            # Using default R version
+            image_version = 'R4.3.2'
+        base_image = f"r-base:{image_version.strip('Rr:')}"
+    else:
+        raise ValueError(f'Unrecognized command {command}')
+    logging.info(f'Using base image {base_image}')
+
     docker_file = dockerfile_template.substitute(
+        base_image=base_image,
         requirements_docker=requirements_docker,
         target_code=target_code,
         target_dir=target_dir,
@@ -239,6 +252,7 @@ def create_operator(file_path: str,
                     keep_generated_files=False,
                     platform='linux/amd64',
                     dockerfile='Dockerfile.generated',
+                    image_version='python3.12',
                     ):
     logging.info('Parameters: ')
     logging.info('file_path: ' + file_path)
@@ -348,7 +362,7 @@ def create_operator(file_path: str,
                  f'{", ".join(additional_files_found)}')
 
     create_dockerfile(dockerfile_template, dockerfile, requirements, target_code, target_dir, additional_files_found,
-                      working_dir, command)
+                      working_dir, command, image_version)
 
     if version is None:
         # auto increase version based on registered images
@@ -466,6 +480,8 @@ def main():
                         help='Do not delete temporary generated files.')
     parser.add_argument('--platform', type=str, default='linux/amd64',
                         help='Select image platform, default is linux/amd64. Alternativly, select linux/arm64".')
+    parser.add_argument('--image_version', type=str, default='python3.12',
+                        help='Select python or R version (defaults to python3.12).')
 
     args = parser.parse_args()
 
@@ -501,6 +517,7 @@ def main():
         keep_generated_files=args.keep_generated_files,
         platform=args.platform,
         dockerfile=args.dockerfile,
+        image_version=args.image_version,
     )
 
 
